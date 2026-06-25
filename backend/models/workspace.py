@@ -8,15 +8,12 @@ from utils.database import Base
 
 class Workspace(Base):
 	__tablename__ = "workspaces"
-
-    #Since implementing in PostgreSQL, no need for auto-incrementing. 
-    #PostgreSQL will handle this automatically with the SERIAL type.
 	
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
 	
 	name: Mapped[str] = mapped_column(String(255), nullable=False)
 	
-	created_at: Mapped[datetime] = mapped_column(
+	created_at: Mapped[datetime | None] = mapped_column(
 		DateTime,
 		server_default=func.now(), #At creation, set it to current time
 		nullable=True,
