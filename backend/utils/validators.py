@@ -40,6 +40,7 @@ DANGEROUS_CHARS = [
 ]
 
 def is_dangerous(string: str) -> bool:
+	string = string.lower()
 	for char in DANGEROUS_CHARS:
 		if char in string:
 			return True

@@ -11,3 +11,6 @@ def test_is_dangerous_allows_clean_string():
 
 def test_is_dangerous_detects_null_byte():
 	assert is_dangerous("hello\0world")
+
+def test_is_dangerous_detects_uppercase_protocol():
+	assert is_dangerous("JavaScript:alert(1)")
