@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import DateTime, ForeignKey, Integer, String, JSON
+from sqlalchemy import DateTime, ForeignKey, Integer, String, JSON, func
 from sqlalchemy.orm import Mapped, mapped_column
 from utils.database import Base
 
@@ -21,4 +21,4 @@ class WorkspaceData(Base):
 
     payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
-    fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
