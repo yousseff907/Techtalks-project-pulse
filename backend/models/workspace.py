@@ -14,7 +14,7 @@ class Workspace(Base):
 	name: Mapped[str] = mapped_column(String(255), nullable=False)
 	
 	created_at: Mapped[datetime | None] = mapped_column(
-		DateTime,
+		DateTime(timezone=True),
 		server_default=func.now(), #At creation, set it to current time
 		nullable=True,
 	)
