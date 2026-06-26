@@ -4,3 +4,4 @@ pytest
 ruff
 dotenv
 sqlalchemy
+requests
