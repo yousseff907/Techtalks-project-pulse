@@ -18,6 +18,3 @@ class EmailRateLimit(Base):
     last_code_date: Mapped[datetime] = mapped_column( DateTime(timezone=True), nullable=False ,server_default=func.now())
 
     sent_emails: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-
-   
-    user: Mapped["User"] = relationship(back_populates="email_rate_limit")
