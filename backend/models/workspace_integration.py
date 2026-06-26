@@ -21,3 +21,5 @@ class WorkspaceIntegrations(Base):
         DateTime(timezone=True), 
         nullable=True
     )
+
+    jira_base_url: Mapped[str | None] = mapped_column(String, nullable=True)
