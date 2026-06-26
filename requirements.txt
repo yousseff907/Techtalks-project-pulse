@@ -3,4 +3,5 @@ uvicorn
 pytest
 ruff
 dotenv
-sqlalchemyrequests
+sqlalchemy
+requests
