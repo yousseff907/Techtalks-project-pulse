@@ -5,3 +5,4 @@ ruff
 dotenv
 sqlalchemy
 requests
+cryptography
