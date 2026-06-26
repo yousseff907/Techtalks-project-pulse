@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-from datetime import datetime, timezone
+import datetime
 
 from sqlalchemy import String, ForeignKey, DateTime, Boolean, Integer, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -23,8 +23,8 @@ class Verification(Base):
     email: Mapped[str] = mapped_column(String, nullable=False)
     code: Mapped[str] = mapped_column(String, nullable=False)
 
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    created_at: Mapped[datetime] = mapped_column(
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
