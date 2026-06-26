@@ -1,8 +1,8 @@
 from unittest.mock import patch, Mock
-from backend.services.jira_service import JiraService
+from services.jira_service import JiraService
 
 
-@patch("backend.services.jira_service.requests.get")
+@patch("services.jira_service.requests.get")
 def test_fetch_users(mock_get):
     mock_response = Mock()
     mock_response.json.return_value = [
