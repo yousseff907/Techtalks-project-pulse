@@ -4,3 +4,5 @@ pytest
 ruff
 dotenv
 sqlalchemy
+requests
+cryptography
