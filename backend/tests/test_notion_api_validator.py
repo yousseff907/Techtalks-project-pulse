@@ -8,9 +8,9 @@ def test_notion_api_validation(mock_get: Mock):
     mock_response.status_code = 401
     mock_get.return_value = mock_response
 
-    assert not is_valid_notion_credentials("https://api.notion.com/v1", "invalidtoken")
-
+    assert not is_valid_notion_credentials("wrongtoken")
+    
     mock_response.status_code = 200
     mock_get.return_value = mock_response
 
-    assert is_valid_notion_credentials("https://api.notion.com/v1", "validtoken")
+    assert is_valid_notion_credentials("validtoken")
