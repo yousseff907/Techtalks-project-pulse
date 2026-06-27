@@ -1,3 +1,6 @@
+import re
+
+
 DANGEROUS_CHARS = [
     # Script injection
     '<',
@@ -45,3 +48,19 @@ def is_dangerous(string: str) -> bool:
 		if char in string:
 			return True
 	return False
+
+def validate_input(input_string: str) -> bool:
+    if is_dangerous(input_string):
+        return False
+    return True
+
+EMAIL_REGEX = re.compile(
+    r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+)
+
+
+def is_valid_email_format(email: str) -> bool:
+	
+    if not email or len(email) > 254:
+        return False
+    return bool(EMAIL_REGEX.match(email))
