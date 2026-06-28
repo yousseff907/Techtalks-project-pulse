@@ -1,4 +1,4 @@
-from unittest.mock import patch, Mock
+from unittest.mock import MagicMock, patch, Mock
 from services.jira_service import JiraService
 
 
@@ -37,3 +37,14 @@ def test_fetch_users(mock_get):
         "email": "",
         "active": False,
     }
+def test_fetch_projects(self):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "values": [{"id": "1", "key": "PROJ1"}],
+            "isLast": True
+        }
+        mock_response.raise_for_status = MagicMock()
+        self.service.session.get.return_value = mock_response
+        projects = self.service.fetch_projects()
+        self.assertEqual(len(projects), 1)
+        self.assertEqual(projects[0]["key"], "PROJ1")
