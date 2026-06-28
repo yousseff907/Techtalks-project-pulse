@@ -49,15 +49,9 @@ def is_dangerous(string: str) -> bool:
 			return True
 	return False
 
-def validate_input(input_string: str) -> bool:
-    if is_dangerous(input_string):
-        return False
-    return True
-
 EMAIL_REGEX = re.compile(
     r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 )
-
 
 def is_valid_email_format(email: str) -> bool:
 	
