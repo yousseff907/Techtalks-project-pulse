@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pytest
+ruff
+dotenv
+sqlalchemy
+requests
+cryptography
