@@ -6,3 +6,4 @@ dotenv
 sqlalchemy
 requests
 cryptography
+pyjwt
