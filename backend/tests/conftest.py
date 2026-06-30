@@ -13,7 +13,6 @@ from utils.database import Base, get_db
 from utils.dependencies import get_current_user
 from app import app
 
-
 engine = create_engine(os.environ["DATABASE_URL"])
 TestingSessionLocal = sessionmaker(bind=engine)
 
