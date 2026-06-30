@@ -1,5 +1,5 @@
-import os
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+# import os
+# os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 from unittest.mock import patch, Mock
 import pytest
