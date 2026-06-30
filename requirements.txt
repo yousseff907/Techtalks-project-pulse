@@ -9,3 +9,4 @@ cryptography
 pyjwt
 resend
 psycopg2-binary
+httpx2
