@@ -1,7 +1,6 @@
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import app
-from models.user import User
 from models.workspace import Workspace
 from models.workspace_integration import WorkspaceIntegrations
 
@@ -59,7 +58,7 @@ def	test_failed_notion_integration_not_workspace_creator(db_session, mock_user):
 	db_session.flush()
 
 	response = client.patch(f"/workspaces/{first_correct_workspace.id}/integrations/notion", json={"api_key": "correct_key"})
-	
+
 	assert response.status_code == 403
 	assert response.json()["detail"] == "Only the workspace owner can configure integrations"
 
