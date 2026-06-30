@@ -1,15 +1,16 @@
 import os
 from cryptography.fernet import Fernet
+
+os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
+os.environ.setdefault("JWT_SECRET", Fernet.generate_key().decode())
+os.environ.setdefault("DATABASE_URL", "postgresql://testuser:testpass@localhost:5432/testdb")
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from utils.database import Base, get_db
 from app import app
 
-
-os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
-os.environ.setdefault("JWT_SECRET", Fernet.generate_key().decode())
-os.environ.setdefault("DATABASE_URL", "postgresql://testuser:testpass@localhost:5432/testdb")
 
 engine = create_engine(os.environ["DATABASE_URL"])
 TestingSessionLocal = sessionmaker(bind=engine)
