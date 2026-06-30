@@ -29,7 +29,7 @@ def	register(request: RegisterRequest, db: Session = Depends(get_db)):
 		db.flush()
 
 		verification_code = generate_code()
-		rate_limit = EmailRateLimit(user_id=user.id, email=request.email, sent_emails=1)
+		rate_limit = EmailRateLimit(user=user, user_id=user.id, email=request.email, sent_emails=1)
 		db.add(rate_limit)
 
 		is_sent = send_email(request.email, verification_code)
