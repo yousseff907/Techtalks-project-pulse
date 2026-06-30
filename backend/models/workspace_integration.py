@@ -15,11 +15,13 @@ class WorkspaceIntegrations(Base):
         nullable=True
     )
 
+    jira_base_url: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    jira_admin_email: Mapped[str | None] = mapped_column(String, nullable=True)
+
     notion_api_key: Mapped[str | None] = mapped_column(String, nullable=True)
 
     notion_connected_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), 
         nullable=True
     )
-
-    jira_base_url: Mapped[str | None] = mapped_column(String, nullable=True)
