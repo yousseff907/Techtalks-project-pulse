@@ -19,6 +19,8 @@ class WorkspaceIntegrations(Base):
 
     jira_admin_email: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    
+
     notion_api_key: Mapped[str | None] = mapped_column(String, nullable=True)
 
     notion_connected_at: Mapped[datetime | None] = mapped_column(
