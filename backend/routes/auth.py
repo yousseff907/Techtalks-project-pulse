@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import math
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -82,7 +82,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     ).first()
 
     if blocked_verification:
-        remaining_seconds = (blocked_verification.expires_at - datetime.now(blocked_verification.expires_at.tzinfo)).total_seconds()
+        remaining_seconds = (blocked_verification.expires_at - datetime.now(timezone.utc)).total_seconds()
         remaining_minutes = math.ceil(remaining_seconds / 60)
         if remaining_minutes < 1:
             remaining_minutes = 1
@@ -105,25 +105,22 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
             detail="A code was already sent, please wait until it expires to request a new one"
         )
 
-    #check rate, if new day, reset
-    
+    # check rate, if new day, reset
     rate_limit = db.query(EmailRateLimit).filter(EmailRateLimit.user_id == user.id).first()
     if rate_limit:
-        if rate_limit.last_code_date.date() != datetime.now().date():
+        if rate_limit.last_code_date.date() != datetime.now(timezone.utc).date():
             rate_limit.sent_emails = 0
-            rate_limit.last_code_date = func.now()
+            rate_limit.last_code_date = datetime.now(timezone.utc)
             db.flush()
 
-    #check if limit reached (3)
-    
+    # check if limit reached (3)
     if rate_limit and rate_limit.sent_emails >= 3:
         raise HTTPException(
             status_code=429, 
             detail="Daily limit reached, please try again tomorrow"
         )
 
-    #Generate code, save to DB, send email
-    
+    # Generate code, save to DB, send email
     verification_code = generate_code()
     
     verification = Verification(user_id=user.id, code=verification_code, email=request.email)
@@ -131,9 +128,9 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
 
     if rate_limit:
         rate_limit.sent_emails += 1
-        rate_limit.last_code_date = func.now()
+        rate_limit.last_code_date = datetime.now(timezone.utc)
     else:
-        rate_limit = EmailRateLimit(user_id=user.id, email=request.email, sent_emails=1, last_code_date=func.now())
+        rate_limit = EmailRateLimit(user_id=user.id, email=request.email, sent_emails=1, last_code_date=datetime.now(timezone.utc))
         db.add(rate_limit)
 
     is_sent = send_email(request.email, verification_code)
