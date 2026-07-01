@@ -7,7 +7,7 @@ os.environ.setdefault("DATABASE_URL", "postgresql://testuser:testpass@localhost:
 
 import pytest
 from unittest.mock import Mock
-from sqlalchemy import create_engine, engine
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from utils.database import Base, get_db
 from utils.dependencies import get_current_user
