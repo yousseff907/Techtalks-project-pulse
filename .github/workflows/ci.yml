@@ -37,6 +37,7 @@ jobs:
           POSTGRES_USER: testuser
           POSTGRES_PASSWORD: testpass
           POSTGRES_DB: testdb
+          TZ: UTC
         ports:
           - 5432:5432
         options: >-
