@@ -205,10 +205,10 @@ def test_verify_success(db_session):
 	assert response.json()["token_type"] == "bearer"
 
 	db_session.refresh(user)
-	assert user.is_verified == True
+	assert user.is_verified
 
 	db_session.refresh(verification)
-	assert verification.used == True
+	assert verification.used
 
 def test_verify_invalid_email_format(db_session):
 	response = client.post("/auth/verify", json={"email": "not-an-email", "code": "123456"})
@@ -336,7 +336,7 @@ def test_full_auth_flow(mock_send_email, db_session):
 	assert "access_token" in response.json()
 
 	db_session.refresh(user)
-	assert user.is_verified == True
+	assert user.is_verified
 
 	# Login
 	response = client.post("/auth/login", json={"email": "fullflow@example.com"})
@@ -347,7 +347,7 @@ def test_full_auth_flow(mock_send_email, db_session):
 	db_session.expire(user)
 	new_verification = db_session.query(Verification).filter(
 		Verification.user_id == user.id,
-		Verification.used == False
+		not Verification.used
 	).first()
 	assert new_verification is not None
 
