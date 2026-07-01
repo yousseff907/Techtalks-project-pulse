@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timezone,timedelta
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import app
@@ -78,7 +78,7 @@ def test_login_success(mock_send_email, db_session):
     db_session.add(user)
     db_session.flush()
     
-    rate_limit = EmailRateLimit(user_id=user.id, email=user.email, sent_emails=0, last_code_date=datetime.now())
+    rate_limit = EmailRateLimit(user_id=user.id, email=user.email, sent_emails=0, last_code_date=datetime.now(timezone.utc))
     db_session.add(rate_limit)
     db_session.commit()
 
@@ -107,7 +107,7 @@ def test_login_too_many_attempts_block(db_session):
     db_session.add(user)
     db_session.flush()
     
-    rate_limit = EmailRateLimit(user_id=user.id, email=user.email, sent_emails=0, last_code_date=datetime.now())
+    rate_limit = EmailRateLimit(user_id=user.id, email=user.email, sent_emails=0, last_code_date=datetime.now(timezone.utc))
     db_session.add(rate_limit)
     
     verification = Verification(
@@ -116,7 +116,7 @@ def test_login_too_many_attempts_block(db_session):
         code="111111", 
         attempts=5, 
         used=False,
-        expires_at=datetime.now() + timedelta(minutes=15)
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=15)
     )
     db_session.add(verification)
     db_session.commit()
@@ -130,7 +130,7 @@ def test_login_code_already_sent_cooldown(db_session):
     db_session.add(user)
     db_session.flush()
     
-    rate_limit = EmailRateLimit(user_id=user.id, email=user.email, sent_emails=0, last_code_date=datetime.now())
+    rate_limit = EmailRateLimit(user_id=user.id, email=user.email, sent_emails=0, last_code_date=datetime.now(timezone.utc))
     db_session.add(rate_limit)
     
     verification = Verification(
@@ -139,7 +139,7 @@ def test_login_code_already_sent_cooldown(db_session):
         code="222222", 
         attempts=0, 
         used=False,
-        expires_at=datetime.now() + timedelta(minutes=15)
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=15)
     )
     db_session.add(verification)
     db_session.commit()
@@ -153,7 +153,7 @@ def test_login_daily_limit_reached(db_session):
     db_session.add(user)
     db_session.flush()
     
-    rate_limit = EmailRateLimit(user_id=user.id, email=user.email, sent_emails=3, last_code_date=datetime.now())
+    rate_limit = EmailRateLimit(user_id=user.id, email=user.email, sent_emails=3, last_code_date=datetime.now(timezone.utc))
     db_session.add(rate_limit)
     db_session.commit()
 
@@ -168,7 +168,7 @@ def test_login_rate_limit_resets_on_new_day(mock_send_email, db_session):
     db_session.add(user)
     db_session.flush()
     
-    yesterday = datetime.now() - timedelta(days=1)
+    yesterday = datetime.now(timezone.utc) - timedelta(days=1)
     rate_limit = EmailRateLimit(user_id=user.id, email=user.email, sent_emails=3, last_code_date=yesterday)
     db_session.add(rate_limit)
     db_session.commit()
