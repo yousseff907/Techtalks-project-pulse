@@ -11,9 +11,15 @@ from models.workspace_member import WorkspaceMember  # noqa: F401
 from models.workspace_integration import WorkspaceIntegrations  # noqa: F401
 from models.workspace_data import WorkspaceData  # noqa: F401
 from utils.database import Base, engine
+from contextlib import asynccontextmanager
 
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
 	CORSMiddleware,
@@ -25,9 +31,3 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(integrations_router)
-
-
-@app.on_event("startup")
-def startup():
-    Base.metadata.create_all(bind=engine)
-
