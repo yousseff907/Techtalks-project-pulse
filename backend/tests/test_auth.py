@@ -347,7 +347,7 @@ def test_full_auth_flow(mock_send_email, db_session):
 	db_session.expire(user)
 	new_verification = db_session.query(Verification).filter(
 		Verification.user_id == user.id,
-		not Verification.used
+		Verification.used.is_(False)
 	).first()
 	assert new_verification is not None
 

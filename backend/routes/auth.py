@@ -158,7 +158,7 @@ def	verify_code(background_task: BackgroundTasks, request: VerifyRequest, db: Se
 		if user is None:
 			raise HTTPException(status_code=404, detail="User not found")
 		
-		verification = db.query(Verification).filter(Verification.user_id == user.id, Verification.expires_at > func.now(), not Verification.used).first()
+		verification = db.query(Verification).filter(Verification.user_id == user.id, Verification.expires_at > func.now(), Verification.used.is_(False)).first()
 		if verification is None:
 			raise HTTPException(status_code=404, detail="No active verification code found, please request a new code")
 
