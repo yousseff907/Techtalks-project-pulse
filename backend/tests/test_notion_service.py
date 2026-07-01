@@ -1,7 +1,6 @@
 from unittest.mock import patch, Mock, MagicMock
 from services.notion_service import NotionService
 
-
 @patch("services.notion_service.requests.get")
 def test_fetch_users(mock_get):
 	mock_response = Mock()
@@ -32,13 +31,15 @@ def test_fetch_users(mock_get):
 	assert result[0] == {
 		"id": "123",
 		"name": "John Doe",
-		"email": "john@test.com"
+		"email": "john@test.com",
+        "active": False,
 	}
 
 	assert result[1] == {
 		"id": "456",
 		"name": "Jane Smith",
-		"email": ""
+		"email": "",
+         "active": False,
 	}
 
 
