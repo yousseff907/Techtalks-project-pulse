@@ -1,6 +1,7 @@
 from config import DATABASE_URL
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import sessionmaker, DeclarativeBase, Session
+from typing import Generator
 
 class Base(DeclarativeBase):
 	pass
@@ -8,7 +9,7 @@ class Base(DeclarativeBase):
 engine = create_engine(DATABASE_URL, echo=True, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
-def	get_db():
+def	get_db() -> Generator[Session, None, None]:
 	db = SessionLocal()
 	try:
 		yield db
