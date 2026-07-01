@@ -1,4 +1,4 @@
-from database import Session
+from utils.database import Session
 from sqlalchemy import or_, func
 from models.verification import Verification
 
