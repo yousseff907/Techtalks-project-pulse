@@ -76,7 +76,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     
     blocked_verification = db.query(Verification).filter(
         Verification.user_id == user.id,
-        Verification.used == False,
+        Verification.used.is_(False),
         Verification.expires_at > func.now(),
         Verification.attempts >= 5
     ).first()
@@ -95,7 +95,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     
     existing_verification = db.query(Verification).filter(
         Verification.user_id == user.id,
-        Verification.used == False,
+        Verification.used.is_(False),
         Verification.expires_at > func.now()
     ).first()
 
