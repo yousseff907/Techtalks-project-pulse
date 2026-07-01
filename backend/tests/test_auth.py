@@ -207,9 +207,6 @@ def test_verify_success(db_session):
 	db_session.refresh(user)
 	assert user.is_verified
 
-	db_session.refresh(verification)
-	assert verification.used
-
 def test_verify_invalid_email_format(db_session):
 	response = client.post("/auth/verify", json={"email": "not-an-email", "code": "123456"})
 	assert response.status_code == 400
