@@ -12,7 +12,6 @@ from models.workspace_integration import WorkspaceIntegrations  # noqa: F401
 from models.workspace_data import WorkspaceData  # noqa: F401
 from utils.database import Base, engine
 
-Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
@@ -26,4 +25,9 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(integrations_router)
+
+
+@app.on_event("startup")
+def startup():
+    Base.metadata.create_all(bind=engine)
 
