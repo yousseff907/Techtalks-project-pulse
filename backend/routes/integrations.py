@@ -5,10 +5,9 @@ from utils.dependencies import get_current_user
 from models.user import User
 from models.workspace import Workspace
 from models.workspace_integration import WorkspaceIntegrations
-from utils.validators import is_dangerous
+from utils.validators import is_dangerous, is_valid_email_format
 from utils.notion_api_validator import is_valid_notion_credentials
 from utils.jira_api_validator import is_valid_jira_credentials
-from utils.validators import is_valid_email_format
 from utils.encryption import encrypt
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
