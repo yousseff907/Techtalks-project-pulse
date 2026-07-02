@@ -2,17 +2,25 @@ from datetime import datetime, timezone
 import math
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel
+
 from utils.validators import is_dangerous, is_valid_email_format
 from utils.database import get_db, Session
+from utils.verification import generate_code
+
+from services.email_service import send_email
+
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
+
+from utils.background_tasks import cleanup_expired_codes
+from utils.jwt_helper import create_jwt_token
+from utils.dependencies import get_current_user
+
+from models.workspace import Workspace
+from models.workspace_member import WorkspaceMember
 from models.user import User
 from models.email_rate_limit import EmailRateLimit
 from models.verification import Verification
-from utils.verification import generate_code
-from services.email_service import send_email
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
-from utils.background_tasks import cleanup_expired_codes
-from utils.jwt_helper import create_jwt_token
 
 router = APIRouter()
 
@@ -184,3 +192,35 @@ def	verify_code(background_task: BackgroundTasks, request: VerifyRequest, db: Se
 	except IntegrityError:
 		db.rollback()
 		raise HTTPException(status_code=409, detail="Integrity error")
+	
+
+
+
+@router.delete("/auth/me", status_code=200)
+def delete_account(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    owned_workspaces = db.query(Workspace).filter(Workspace.created_by == current_user.id).all()
+    
+    workspaces_to_transfer = []
+    
+    for workspace in owned_workspaces:
+        next_admin = db.query(WorkspaceMember).filter(
+            WorkspaceMember.workspace_id == workspace.id,
+            WorkspaceMember.role == "admin"
+        ).order_by(WorkspaceMember.joined_at.asc()).first()
+        
+        if not next_admin:
+            raise HTTPException(
+                status_code=400,
+                detail="You own workspaces with no admin. Please promote a member to admin or delete the workspace before deleting your account"
+            )
+        
+        workspaces_to_transfer.append((workspace, next_admin.user_id))
+        
+    for workspace, new_owner_id in workspaces_to_transfer:
+        workspace.created_by = new_owner_id
+        
+    db.query(User).filter(User.id == current_user.id).delete(synchronize_session=False)
+        
+    db.commit()
+    
+    return {"message": "Account deleted successfully"}

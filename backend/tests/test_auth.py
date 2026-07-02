@@ -351,3 +351,97 @@ def test_full_auth_flow(mock_send_email, db_session):
 	response = client.post("/auth/verify", json={"email": "fullflow@example.com", "code": new_verification.code})
 	assert response.status_code == 200
 	assert "access_token" in response.json()
+
+
+
+# Account Deletion
+
+#Cascade deletion test
+def test_delete_account_success_no_workspaces(db_session, mock_user):
+    user = User(username="deluser", email="deluser@example.com", is_verified=True)
+    db_session.add(user)
+    db_session.flush()
+    
+    user_id = user.id
+    
+    mock_user.id = user.id
+    mock_user.email = user.email
+
+    v = Verification(user_id=user.id, email=user.email, code="123456")
+    rl = EmailRateLimit(user_id=user.id, email=user.email, sent_emails=1)
+    db_session.add_all([v, rl])
+    db_session.commit()
+
+    response = client.delete("/auth/me")
+    assert response.status_code == 200
+    assert response.json()["message"] == "Account deleted successfully"
+
+    assert db_session.query(User).filter(User.id == user_id).first() is None
+    assert db_session.query(Verification).filter(Verification.user_id == user_id).first() is None
+    assert db_session.query(EmailRateLimit).filter(EmailRateLimit.user_id == user_id).first() is None
+
+
+def test_delete_account_failed_workspace_has_no_admin(db_session, mock_user):
+    from models.workspace import Workspace
+    from models.workspace_member import WorkspaceMember
+
+    user = User(username="soleowner", email="soleowner@example.com", is_verified=True)
+    db_session.add(user)
+    db_session.flush()
+    
+    mock_user.id = user.id
+    mock_user.email = user.email
+
+    ws = Workspace(name="No Admin WS", created_by=user.id, invite_code="code_na", invite_link="link_na")
+    db_session.add(ws)
+    db_session.flush()
+    
+    member = WorkspaceMember(user_id=user.id, workspace_id=ws.id, role="owner")
+    db_session.add(member)
+    db_session.commit()
+
+    response = client.delete("/auth/me")
+    assert response.status_code == 400
+    assert response.json()["detail"] == "You own workspaces with no admin. Please promote a member to admin or delete the workspace before deleting your account"
+
+    assert db_session.query(User).filter(User.id == user.id).first() is not None
+
+
+def test_delete_account_success_transfers_ownership_to_oldest_admin(db_session, mock_user):
+    from models.workspace import Workspace
+    from models.workspace_member import WorkspaceMember
+
+    owner = User(username="workspaceowner", email="wsowner@example.com", is_verified=True)
+    admin_old = User(username="oldadmin", email="oldadmin@example.com", is_verified=True)
+    admin_new = User(username="newadmin", email="newadmin@example.com", is_verified=True)
+    db_session.add_all([owner, admin_old, admin_new])
+    db_session.flush()
+    
+    owner_id = owner.id
+    
+    mock_user.id = owner.id
+    mock_user.email = owner.email
+
+    ws = Workspace(name="Transfer Target WS", created_by=owner.id, invite_code="code_tx", invite_link="link_tx")
+    db_session.add(ws)
+    db_session.flush()
+    
+    now = datetime.now(timezone.utc)
+    m_owner = WorkspaceMember(user_id=owner.id, workspace_id=ws.id, role="owner", joined_at=now - timedelta(days=2))
+    m_admin_old = WorkspaceMember(user_id=admin_old.id, workspace_id=ws.id, role="admin", joined_at=now - timedelta(hours=5))
+    m_admin_new = WorkspaceMember(user_id=admin_new.id, workspace_id=ws.id, role="admin", joined_at=now - timedelta(hours=1))
+    
+    db_session.add_all([m_owner, m_admin_old, m_admin_new])
+    db_session.commit()
+
+    response = client.delete("/auth/me")
+    assert response.status_code == 200
+    assert response.json()["message"] == "Account deleted successfully"
+
+    db_session.refresh(ws)
+    assert ws.created_by == admin_old.id
+    
+    assert db_session.query(User).filter(User.id == owner_id).first() is None
+    assert db_session.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == ws.id, WorkspaceMember.user_id == owner_id).first() is None
+    
+    assert db_session.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == ws.id, WorkspaceMember.user_id == admin_old.id).first() is not None
