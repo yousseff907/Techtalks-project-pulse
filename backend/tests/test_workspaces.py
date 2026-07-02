@@ -35,6 +35,6 @@ def	test_workspace_creation(db_session, mock_user):
 	assert response.status_code == 400
 	assert response.json()["detail"] == "You have reached the maximum number of workspaces (5)"
 
-	response = client.post("/workspaces", json={"name": f"InvalidName_%00"})
+	response = client.post("/workspaces", json={"name": "InvalidName_%00"})
 	assert response.status_code == 400
 	assert response.json()["detail"] == "Invalid name, contains dangerous characters"
