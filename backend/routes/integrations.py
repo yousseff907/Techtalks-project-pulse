@@ -40,7 +40,7 @@ def	save_notion_integration(request: NotionIntegrationRequest, workspace_id: int
 			if workspace.created_by != current_user.id:
 				raise HTTPException(status_code=403, detail="Only the workspace owner can configure integrations")
 
-		if workspace.created_by != current_user.id and workspace_member.role != "owner" and workspace_member.role != "admin":
+		elif workspace.created_by != current_user.id and workspace_member.role != "owner" and workspace_member.role != "admin":
 			raise HTTPException(status_code=403, detail="Only the workspace owner or an admin can configure integrations")
 		
 		if is_dangerous(request.api_key):
