@@ -219,6 +219,12 @@ def delete_account(db: Session = Depends(get_db), current_user: User = Depends(g
     for workspace, new_owner_id in workspaces_to_transfer:
         workspace.created_by = new_owner_id
         
+        db.query(WorkspaceMember).filter(
+            WorkspaceMember.workspace_id == workspace.id,
+            WorkspaceMember.user_id == new_owner_id
+        ).update({"role": "owner"})
+        
+        
     db.query(User).filter(User.id == current_user.id).delete(synchronize_session=False)
         
     db.commit()
