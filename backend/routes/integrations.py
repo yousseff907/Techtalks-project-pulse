@@ -8,6 +8,7 @@ from models.workspace_integration import WorkspaceIntegrations
 from utils.validators import is_dangerous
 from utils.notion_api_validator import is_valid_notion_credentials
 from utils.jira_api_validator import is_valid_jira_credentials
+from utils.validators import is_valid_email_format
 from utils.encryption import encrypt
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
@@ -73,8 +74,11 @@ def save_jira_integration(request: JiraIntegrationRequest, workspace_id: int, db
         if workspace.created_by != current_user.id:
             raise HTTPException(status_code=403, detail="Only the workspace owner can configure integrations")
         
-        if is_dangerous(request.base_url) or is_dangerous(request.api_key):
+        if is_dangerous(request.base_url) or is_dangerous(request.api_key) or is_dangerous(request.admin_email):
             raise HTTPException(status_code=400, detail="Invalid Jira credentials, contains dangerous characters")
+        
+        if not is_valid_email_format(request.admin_email):
+            raise HTTPException(status_code=400, detail="Invalid email format")
         
         if not is_valid_jira_credentials(request.base_url, request.admin_email, request.api_key):
             raise HTTPException(status_code=400, detail="Invalid Jira credentials")
@@ -87,9 +91,9 @@ def save_jira_integration(request: JiraIntegrationRequest, workspace_id: int, db
             db.flush()
 
         db.query(WorkspaceIntegrations).filter(WorkspaceIntegrations.workspace_id == workspace_id).update({
+            "jira_api_key": encrypted_api_key,
             "jira_base_url": request.base_url,
             "jira_admin_email": request.admin_email,
-            "jira_api_key": encrypted_api_key,
             "jira_connected_at": func.now()
         })
 

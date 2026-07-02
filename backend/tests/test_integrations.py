@@ -115,7 +115,7 @@ def test_successfull_jira_integration_existing_integration(mock_is_valid_credent
     db_session.add(user)
     db_session.flush()
     mock_user.id = user.id
-    first_correct_workspace = Workspace(name="first_correct_workspace", created_by=mock_user.id, invite_code="xxx", invite_link="xxx.example")
+    first_correct_workspace = Workspace(name="first_correct_workspace", created_by=mock_user.id, invite_code="xxx_jira", invite_link="xxx_jira.example")
     db_session.add(first_correct_workspace)
     db_session.flush()
     first_correct_workspace.integration = WorkspaceIntegrations(workspace_id=first_correct_workspace.id)
@@ -124,7 +124,7 @@ def test_successfull_jira_integration_existing_integration(mock_is_valid_credent
 
     mock_is_valid_credentials.return_value = True
     response = client.patch(
-        f"/workspaces/{first_correct_workspace.id}/integrations/jira", 
+        f"/workspaces/{first_correct_workspace.id}/integrations/jira",
         json={"base_url": "https://example.atlassian.net", "admin_email": "admin@example.com", "api_key": "correct_key"}
     )
 
@@ -132,9 +132,9 @@ def test_successfull_jira_integration_existing_integration(mock_is_valid_credent
     assert response.json()["message"] == "Jira integration saved successfully"
 
     db_session.refresh(first_correct_workspace.integration)
+    assert first_correct_workspace.integration.jira_api_key is not None
     assert first_correct_workspace.integration.jira_base_url == "https://example.atlassian.net"
     assert first_correct_workspace.integration.jira_admin_email == "admin@example.com"
-    assert first_correct_workspace.integration.jira_api_key is not None
     assert first_correct_workspace.integration.jira_connected_at is not None
 
 
@@ -144,13 +144,13 @@ def test_successfull_jira_integration_non_existing_integration(mock_is_valid_cre
     db_session.add(user)
     db_session.flush()
     mock_user.id = user.id
-    second_correct_workspace = Workspace(name="second_correct_workspace", created_by=mock_user.id, invite_code="yyy", invite_link="yyy.example")
+    second_correct_workspace = Workspace(name="second_correct_workspace", created_by=mock_user.id, invite_code="yyy_jira", invite_link="yyy_jira.example")
     db_session.add(second_correct_workspace)
     db_session.flush()
 
     mock_is_valid_credentials.return_value = True
     response = client.patch(
-        f"/workspaces/{second_correct_workspace.id}/integrations/jira", 
+        f"/workspaces/{second_correct_workspace.id}/integrations/jira",
         json={"base_url": "https://example.atlassian.net", "admin_email": "admin@example.com", "api_key": "correct_key"}
     )
 
@@ -158,9 +158,9 @@ def test_successfull_jira_integration_non_existing_integration(mock_is_valid_cre
     assert response.json()["message"] == "Jira integration saved successfully"
     
     db_session.refresh(second_correct_workspace.integration)
+    assert second_correct_workspace.integration.jira_api_key is not None
     assert second_correct_workspace.integration.jira_base_url == "https://example.atlassian.net"
     assert second_correct_workspace.integration.jira_admin_email == "admin@example.com"
-    assert second_correct_workspace.integration.jira_api_key is not None
     assert second_correct_workspace.integration.jira_connected_at is not None
 
 
@@ -178,7 +178,7 @@ def test_failed_jira_integration_not_workspace_creator(db_session, mock_user):
     admin = User(username="admin_user", email="admin@example.com")
     db_session.add(admin)
     db_session.flush()
-    first_correct_workspace = Workspace(name="first_correct_workspace", created_by=admin.id, invite_code="xxx", invite_link="xxx.example")
+    first_correct_workspace = Workspace(name="first_correct_workspace", created_by=admin.id, invite_code="xxx_jira", invite_link="xxx_jira.example")
     db_session.add(first_correct_workspace)
     db_session.flush()
     first_correct_workspace.integration = WorkspaceIntegrations(workspace_id=first_correct_workspace.id)
@@ -186,7 +186,7 @@ def test_failed_jira_integration_not_workspace_creator(db_session, mock_user):
     db_session.flush()
 
     response = client.patch(
-        f"/workspaces/{first_correct_workspace.id}/integrations/jira", 
+        f"/workspaces/{first_correct_workspace.id}/integrations/jira",
         json={"base_url": "https://example.atlassian.net", "admin_email": "admin@example.com", "api_key": "correct_key"}
     )
 
@@ -200,13 +200,13 @@ def test_failed_jira_integration_invalid_credentials(mock_is_valid_credentials, 
     db_session.add(user)
     db_session.flush()
     mock_user.id = user.id
-    workspace = Workspace(name="workspace", created_by=mock_user.id, invite_code="xxx", invite_link="xxx.example")
+    workspace = Workspace(name="workspace", created_by=mock_user.id, invite_code="xxx_jira", invite_link="xxx_jira.example")
     db_session.add(workspace)
     db_session.flush()
 
     mock_is_valid_credentials.return_value = False
     response = client.patch(
-        f"/workspaces/{workspace.id}/integrations/jira", 
+        f"/workspaces/{workspace.id}/integrations/jira",
         json={"base_url": "https://example.atlassian.net", "admin_email": "admin@example.com", "api_key": "invalid_key"}
     )
 
@@ -219,14 +219,32 @@ def test_failed_jira_integration_dangerous_input(db_session, mock_user):
     db_session.add(user)
     db_session.flush()
     mock_user.id = user.id
-    workspace = Workspace(name="workspace", created_by=mock_user.id, invite_code="xxx", invite_link="xxx.example")
+    workspace = Workspace(name="workspace", created_by=mock_user.id, invite_code="xxx_jira", invite_link="xxx_jira.example")
     db_session.add(workspace)
     db_session.flush()
 
     response = client.patch(
-        f"/workspaces/{workspace.id}/integrations/jira", 
-        json={"base_url": "<script>alert(1)</script>", "admin_email": "admin@example.com", "api_key": "correct_key"}
+        f"/workspaces/{workspace.id}/integrations/jira",
+        json={"base_url": "https://example.atlassian.net", "admin_email": "admin@example.com; DROP TABLE users;", "api_key": "correct_key"}
     )
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid Jira credentials, contains dangerous characters"
+
+
+def test_failed_jira_integration_invalid_email_format(db_session, mock_user):
+    user = User(username="admin_user", email="admin@example.com")
+    db_session.add(user)
+    db_session.flush()
+    mock_user.id = user.id
+    workspace = Workspace(name="workspace", created_by=mock_user.id, invite_code="xxx_jira", invite_link="xxx_jira.example")
+    db_session.add(workspace)
+    db_session.flush()
+
+    response = client.patch(
+        f"/workspaces/{workspace.id}/integrations/jira",
+        json={"base_url": "https://example.atlassian.net", "admin_email": "not-an-email", "api_key": "correct_key"}
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid email format"
