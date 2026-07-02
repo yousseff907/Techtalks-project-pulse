@@ -471,3 +471,5 @@ def test_delete_account_solo_owner_success(db_session, mock_user):
     assert response.status_code == 200
 
     assert db_session.query(User).filter(User.id == user_id).first() is None
+    
+    assert db_session.query(Workspace).filter(Workspace.id == workspace.id).first() is None
