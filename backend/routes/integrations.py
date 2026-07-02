@@ -35,6 +35,11 @@ def	save_notion_integration(request: NotionIntegrationRequest, workspace_id: int
 		
 		workspace_member = db.query(WorkspaceMember).filter(WorkspaceMember.user_id == current_user.id, WorkspaceMember.workspace_id == workspace_id).first()
 
+		# or i would have to create a workspace member for each test
+		if workspace_member is None:
+			if workspace.created_by != current_user.id:
+				raise HTTPException(status_code=403, detail="Only the workspace owner can configure integrations")
+
 		if workspace.created_by != current_user.id and workspace_member.role != "owner" and workspace_member.role != "admin":
 			raise HTTPException(status_code=403, detail="Only the workspace owner or an admin can configure integrations")
 		
@@ -75,7 +80,12 @@ def save_jira_integration(request: JiraIntegrationRequest, workspace_id: int, db
 
 		workspace_member = db.query(WorkspaceMember).filter(WorkspaceMember.user_id == current_user.id, WorkspaceMember.workspace_id == workspace_id).first()
 
-		if workspace.created_by != current_user.id and workspace_member.role != "owner" and workspace_member.role != "admin":
+		# or i would have to create a workspace member for each test
+		if workspace_member is None:
+			if workspace.created_by != current_user.id:
+				raise HTTPException(status_code=403, detail="Only the workspace owner can configure integrations")
+
+		elif workspace.created_by != current_user.id and workspace_member.role != "owner" and workspace_member.role != "admin":
 			raise HTTPException(status_code=403, detail="Only the workspace owner can configure integrations")
 		
 		if is_dangerous(request.base_url) or is_dangerous(request.api_key) or is_dangerous(request.admin_email):
