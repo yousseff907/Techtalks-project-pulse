@@ -2,6 +2,8 @@ from datetime import datetime, timezone,timedelta
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import app
+from models.workspace import Workspace
+from models.workspace_member import WorkspaceMember
 from models.user import User
 from models.email_rate_limit import EmailRateLimit
 from models.verification import Verification
@@ -367,9 +369,19 @@ def test_delete_account_success_no_workspaces(db_session, mock_user):
     mock_user.id = user.id
     mock_user.email = user.email
 
+    owner = User(username="ws_owner", email="owner@example.com")
+    db_session.add(owner)
+    db_session.flush()
+    
+    workspace = Workspace(name="Shared Workspace", created_by=owner.id, invite_code="xyz123", invite_link="xyz.example")
+    db_session.add(workspace)
+    db_session.flush()
+
+    member = WorkspaceMember(user_id=user.id, workspace_id=workspace.id, role="member")
     v = Verification(user_id=user.id, email=user.email, code="123456")
     rl = EmailRateLimit(user_id=user.id, email=user.email, sent_emails=1)
-    db_session.add_all([v, rl])
+    
+    db_session.add_all([member, v, rl])
     db_session.commit()
 
     response = client.delete("/auth/me")
@@ -379,7 +391,7 @@ def test_delete_account_success_no_workspaces(db_session, mock_user):
     assert db_session.query(User).filter(User.id == user_id).first() is None
     assert db_session.query(Verification).filter(Verification.user_id == user_id).first() is None
     assert db_session.query(EmailRateLimit).filter(EmailRateLimit.user_id == user_id).first() is None
-
+    assert db_session.query(WorkspaceMember).filter(WorkspaceMember.user_id == user_id, WorkspaceMember.workspace_id == workspace.id).first() is None
 
 def test_delete_account_failed_workspace_has_no_admin(db_session, mock_user):
     from models.workspace import Workspace
