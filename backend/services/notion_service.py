@@ -1,4 +1,3 @@
-from fastapi import params
 import requests
 
 
