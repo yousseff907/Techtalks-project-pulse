@@ -1,3 +1,4 @@
+from fastapi import params
 import requests
 
 
@@ -13,22 +14,32 @@ class NotionService:
         }
 
     def fetch_users(self):
-        response = requests.get(
-            f"{self.base_url}/users",
-            headers=self._headers(),
-        )
-        response.raise_for_status()
-        users = response.json().get("results", [])
+        params = {}
+        users = []
 
-        return [
-            {
-                "id": u.get("id", ""),
-                "name": u.get("name", ""),
-                "email": u.get("person", {}).get("email", ""),
-                "active": bool(u.get("is_active", False)),
-            }
-            for u in users
-        ]
+        while True:
+            response = requests.get(
+                f"{self.base_url}/users",
+                headers=self._headers(),
+                params=params,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            for u in data.get("results", []):
+                users.append({
+                    "id": u.get("id", ""),
+                    "name": u.get("name", ""),
+                    "email": u.get("person", {}).get("email", ""),
+                    "active": bool(u.get("is_active", False)),
+                })
+
+            if data.get("has_more"):
+                params["start_cursor"] = data.get("next_cursor")
+            else:
+                break
+
+        return users
 
     def fetch_databases(self):
         url = f"{self.base_url}/search"
