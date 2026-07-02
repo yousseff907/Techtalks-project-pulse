@@ -16,6 +16,9 @@ router = APIRouter()
 class CreateWorkspaceRequest(BaseModel):
 	name: str
 
+class JoinWorkspaceRequest(BaseModel):
+    invite_code: str
+
 @router.post("/workspaces", status_code=201)
 def	create_workspace(request: CreateWorkspaceRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
 	max_workspaces = 5
@@ -46,3 +49,64 @@ def	create_workspace(request: CreateWorkspaceRequest, db: Session = Depends(get_
 			return {"workspace_id": new_workspace.id, "name": new_workspace.name, "invite_code": new_workspace.invite_code, "invite_link": new_workspace.invite_link}
 		except IntegrityError:
 			db.rollback()
+
+@router.post("/workspaces/join")
+def join_workspace(
+    body: JoinWorkspaceRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if is_dangerous(body.invite_code):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid invite code",
+        )
+
+    workspace = (
+        db.query(Workspace)
+        .filter(Workspace.invite_code == body.invite_code)
+        .first()
+    )
+    if not workspace:
+        raise HTTPException(
+            status_code=404,
+            detail="Invalid invite code",
+        )
+
+    existing_member = (
+        db.query(WorkspaceMember)
+        .filter(
+            WorkspaceMember.user_id == current_user.id,
+            WorkspaceMember.workspace_id == workspace.id,
+        )
+        .first()
+    )
+    if existing_member:
+        raise HTTPException(
+            status_code=409,
+            detail="You are already a member of this workspace",
+        )
+
+    workspace_count = (
+        db.query(WorkspaceMember)
+        .filter(WorkspaceMember.user_id == current_user.id)
+        .count()
+    )
+    if workspace_count >= 5:
+        raise HTTPException(
+            status_code=400,
+            detail="You have reached the maximum number of workspaces (5)",
+        )
+
+    new_member = WorkspaceMember(
+        user_id=current_user.id,
+        workspace_id=workspace.id,
+        role="member",
+    )
+    db.add(new_member)
+    db.commit()
+
+    return {
+        "workspace_id": workspace.id,
+        "name": workspace.name,
+    }
