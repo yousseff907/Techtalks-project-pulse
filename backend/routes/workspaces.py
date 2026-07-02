@@ -105,7 +105,7 @@ def join_workspace(
     )
     db.add(new_member)
     db.commit()
-
+    db.refresh(new_member)
     return {
         "workspace_id": workspace.id,
         "name": workspace.name,
