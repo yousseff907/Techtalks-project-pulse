@@ -203,6 +203,11 @@ def delete_account(db: Session = Depends(get_db), current_user: User = Depends(g
     workspaces_to_transfer = []
     
     for workspace in owned_workspaces:
+        member_count = db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace.id).count()
+        
+        if member_count <= 1:
+            continue
+
         next_admin = db.query(WorkspaceMember).filter(
             WorkspaceMember.workspace_id == workspace.id,
             WorkspaceMember.role == "admin"
