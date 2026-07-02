@@ -25,7 +25,6 @@ class NotionService:
                 "id": u.get("id", ""),
                 "name": u.get("name", ""),
                 "email": u.get("person", {}).get("email", ""),
-                "active": bool(u.get("is_active", False)),
             }
             for u in users
         ]
@@ -47,8 +46,11 @@ class NotionService:
             data = response.json()
 
             for db in data.get("results", []):
-                title_array = db.get("title", [])
-                title = title_array[0].get("plain_text", "") if title_array else ""
+                title_array = db.get("title") or []
+                if len(title_array) > 0:
+                     title = title_array[0].get("plain_text", "Untitled")
+                else:
+                    title = "Untitled"
 
                 databases.append({
                     "id": db.get("id", ""),

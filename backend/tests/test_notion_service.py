@@ -1,3 +1,4 @@
+from unittest import result
 from unittest.mock import patch, Mock, MagicMock
 from services.notion_service import NotionService
 
@@ -32,14 +33,12 @@ def test_fetch_users(mock_get):
 		"id": "123",
 		"name": "John Doe",
 		"email": "john@test.com",
-        "active": False,
 	}
 
 	assert result[1] == {
 		"id": "456",
 		"name": "Jane Smith",
 		"email": "",
-         "active": False,
 	}
 
 
@@ -83,7 +82,7 @@ def test_fetch_databases_returns_multiple_databases():
 def test_fetch_databases_handles_missing_title_array():
     mock_response = MagicMock()
     mock_response.json.return_value = {
-        "results": [{"id": "db-1"}],  # no title key at all
+        "results": [{"id": "db-1"}], 
         "has_more": False,
     }
 
@@ -91,13 +90,13 @@ def test_fetch_databases_handles_missing_title_array():
         service = NotionService(api_token="test-token")
         result = service.fetch_databases()
 
-    assert result == [{"id": "db-1", "title": ""}]
+    assert result == [{"id": "db-1", "title": "Untitled"}]
 
 
 def test_fetch_databases_handles_empty_title_array():
     mock_response = MagicMock()
     mock_response.json.return_value = {
-        "results": [{"id": "db-1", "title": []}],  # title key exists but empty
+        "results": [{"id": "db-1", "title": []}], 
         "has_more": False,
     }
 
@@ -105,14 +104,13 @@ def test_fetch_databases_handles_empty_title_array():
         service = NotionService(api_token="test-token")
         result = service.fetch_databases()
 
-    assert result == [{"id": "db-1", "title": ""}]
+    assert result == [{"id": "db-1", "title": "Untitled"}]
 
 
 def test_fetch_databases_handles_missing_id():
     mock_response = MagicMock()
     mock_response.json.return_value = {
-        "results": [{"title": [{"plain_text": "Orphan DB"}]}],  # no id key
-        "has_more": False,
+        "results": [{"title": [{"plain_text": "Orphan DB"}]}],  
     }
 
     with patch("requests.post", return_value=mock_response):
