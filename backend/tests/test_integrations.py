@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from app import app
 from models.workspace import Workspace
 from models.workspace_integration import WorkspaceIntegrations
+from models.workspace_member import WorkspaceMember
 from models.user import User
 
 client = TestClient(app)
@@ -29,6 +30,21 @@ def	test_successfull_notion_integration_existing_integration(mock_is_valid_crede
 	db_session.refresh(first_correct_workspace.integration)
 	assert first_correct_workspace.integration.notion_api_key is not None
 	assert first_correct_workspace.integration.notion_connected_at is not None
+
+	#admin test
+
+	user = User(username="testuser2", email="test2@example.com")
+	db_session.add(user)
+	db_session.flush()
+	mock_user.id = user.id
+	workspace_member = WorkspaceMember(user_id=user.id, workspace_id=first_correct_workspace.id, role="admin")
+	db_session.add(workspace_member)
+	db_session.flush()
+	mock_is_valid_credentials.return_value = True
+	response = client.patch(f"/workspaces/{first_correct_workspace.id}/integrations/notion", json={"api_key": "correct_key"})
+
+	assert response.status_code == 200
+	assert response.json()["message"] == "Notion credentials saved successfully"
 
 @patch("routes.integrations.is_valid_notion_credentials")
 def	test_successfull_notion_integration_non_existing_integration(mock_is_valid_credentials, db_session, mock_user):
@@ -111,31 +127,55 @@ def test_failed_notion_integration_dangerous_input(db_session, mock_user):
 
 @patch("routes.integrations.is_valid_jira_credentials")
 def test_successfull_jira_integration_existing_integration(mock_is_valid_credentials, db_session, mock_user):
-    user = User(username="testuser", email="test@example.com")
-    db_session.add(user)
-    db_session.flush()
-    mock_user.id = user.id
-    first_correct_workspace = Workspace(name="first_correct_workspace", created_by=mock_user.id, invite_code="xxx_jira", invite_link="xxx_jira.example")
-    db_session.add(first_correct_workspace)
-    db_session.flush()
-    first_correct_workspace.integration = WorkspaceIntegrations(workspace_id=first_correct_workspace.id)
-    db_session.add(first_correct_workspace.integration)
-    db_session.flush()
+	user = User(username="testuser", email="test@example.com")
+	db_session.add(user)
+	db_session.flush()
+	mock_user.id = user.id
+	first_correct_workspace = Workspace(name="first_correct_workspace", created_by=mock_user.id, invite_code="xxx_jira", invite_link="xxx_jira.example")
+	db_session.add(first_correct_workspace)
+	db_session.flush()
+	first_correct_workspace.integration = WorkspaceIntegrations(workspace_id=first_correct_workspace.id)
+	db_session.add(first_correct_workspace.integration)
+	db_session.flush()
 
-    mock_is_valid_credentials.return_value = True
-    response = client.patch(
-        f"/workspaces/{first_correct_workspace.id}/integrations/jira",
-        json={"base_url": "https://example.atlassian.net", "admin_email": "admin@example.com", "api_key": "correct_key"}
-    )
+	mock_is_valid_credentials.return_value = True
+	response = client.patch(
+		f"/workspaces/{first_correct_workspace.id}/integrations/jira",
+		json={"base_url": "https://example.atlassian.net", "admin_email": "admin@example.com", "api_key": "correct_key"}
+	)
 
-    assert response.status_code == 200
-    assert response.json()["message"] == "Jira integration saved successfully"
+	assert response.status_code == 200
+	assert response.json()["message"] == "Jira integration saved successfully"
 
-    db_session.refresh(first_correct_workspace.integration)
-    assert first_correct_workspace.integration.jira_api_key is not None
-    assert first_correct_workspace.integration.jira_base_url == "https://example.atlassian.net"
-    assert first_correct_workspace.integration.jira_admin_email == "admin@example.com"
-    assert first_correct_workspace.integration.jira_connected_at is not None
+	db_session.refresh(first_correct_workspace.integration)
+	assert first_correct_workspace.integration.jira_api_key is not None
+	assert first_correct_workspace.integration.jira_base_url == "https://example.atlassian.net"
+	assert first_correct_workspace.integration.jira_admin_email == "admin@example.com"
+	assert first_correct_workspace.integration.jira_connected_at is not None
+		
+	#admin test
+
+	user = User(username="testuser2", email="test2@example.com")
+	db_session.add(user)
+	db_session.flush()
+	mock_user.id = user.id
+	workspace_member = WorkspaceMember(user_id=user.id, workspace_id=first_correct_workspace.id, role="admin")
+	db_session.add(workspace_member)
+	db_session.flush()
+	mock_is_valid_credentials.return_value = True
+	response = client.patch(
+		f"/workspaces/{first_correct_workspace.id}/integrations/jira",
+		json={"base_url": "https://example.atlassian.net", "admin_email": "admin@example.com", "api_key": "correct_key"}
+	)
+
+	assert response.status_code == 200
+	assert response.json()["message"] == "Jira integration saved successfully"
+
+	db_session.refresh(first_correct_workspace.integration)
+	assert first_correct_workspace.integration.jira_api_key is not None
+	assert first_correct_workspace.integration.jira_base_url == "https://example.atlassian.net"
+	assert first_correct_workspace.integration.jira_admin_email == "admin@example.com"
+	assert first_correct_workspace.integration.jira_connected_at is not None
 
 
 @patch("routes.integrations.is_valid_jira_credentials")
