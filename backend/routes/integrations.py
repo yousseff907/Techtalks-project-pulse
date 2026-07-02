@@ -45,7 +45,7 @@ def	save_notion_integration(request: NotionIntegrationRequest, workspace_id: int
 		encrypted_api_key = encrypt(request.api_key)
 
 		if workspace.integration is None:
-			workspace.integration = WorkspaceIntegrations(workspace_id = workspace_id)
+			workspace.integration = WorkspaceIntegrations(workspace = workspace)
 			db.add(workspace.integration)
 			db.flush()
 
@@ -86,7 +86,7 @@ def save_jira_integration(request: JiraIntegrationRequest, workspace_id: int, db
         encrypted_api_key = encrypt(request.api_key)
 
         if workspace.integration is None:
-            workspace.integration = WorkspaceIntegrations(workspace_id=workspace_id)
+            workspace.integration = WorkspaceIntegrations(workspace=workspace)
             db.add(workspace.integration)
             db.flush()
 
