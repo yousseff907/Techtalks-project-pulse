@@ -29,7 +29,7 @@ def	create_workspace(request: CreateWorkspaceRequest, db: Session = Depends(get_
 
 	workspace_count = db.query(Workspace).count()
 
-	for _ in range (0, workspace_count):
+	for _ in range (0, workspace_count + 1):
 		try:
 			invitation_code = secrets.token_urlsafe(16)
 			new_workspace = Workspace(name=request.name, created_by=current_user.id, invite_code=invitation_code, invite_link=APP_BASE_URL+'/'+str(invitation_code))
