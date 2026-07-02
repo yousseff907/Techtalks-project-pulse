@@ -2,18 +2,38 @@ import requests
 
 
 class JiraService:
-    def __init__(self, base_url, email, api_token):
+    def init(self, base_url, email, api_token):
         self.base_url = base_url
         self.auth = (email, api_token)
+        self.session = requests.Session()
 
     def fetch_users(self):
-        response = requests.get(
-            f"{self.base_url}/rest/api/3/user/search",
-            auth=self.auth,
-            headers={"Accept": "application/json"},
-        )
-        response.raise_for_status()
-        users = response.json()
+        start_at = 0
+        max_results = 50
+        all_users = []
+
+        while True:
+            response = self.session.get(
+                f"{self.base_url}/rest/api/3/user/search",
+                auth=self.auth,
+                headers={"Accept": "application/json"},
+                params={
+                    "startAt": start_at,
+                    "maxResults": max_results
+                },
+            )
+            response.raise_for_status()
+            users = response.json()
+
+            if not users:
+                break
+
+            all_users.extend(users)
+
+            if len(users) < max_results:
+                break
+
+            start_at += max_results
 
         return [
             {
@@ -22,22 +42,35 @@ class JiraService:
                 "email": u.get("emailAddress", ""),
                 "active": bool(u.get("active", False)),
             }
-            for u in users
+            for u in all_users
         ]
+
     def fetch_projects(self, start_at=0, max_results=50):
         all_projects = []
+
         while True:
             response = self.session.get(
                 f"{self.base_url}/rest/api/2/project",
-                params={"startAt": start_at, "maxResults": max_results}
+                auth=self.auth,
+                headers={"Accept": "application/json"},
+                params={
+                    "startAt": start_at,
+                    "maxResults": max_results
+                }
             )
+
             response.raise_for_status()
             data = response.json()
             projects = data.get("values", [])
+
             if not projects:
                 break
+
             all_projects.extend(projects)
+
             if data.get("isLast", True):
                 break
+
             start_at += max_results
+
         return all_projects
