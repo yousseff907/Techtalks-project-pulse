@@ -74,11 +74,6 @@ def make_mock_db(workspace=None, existing_member=None, workspace_count=0):
     return mock_db
 
 
-@pytest.fixture
-def client():
-    return TestClient(app)
-
-
 def override_dependencies(mock_user, mock_db):
     app.dependency_overrides[get_current_user] = lambda: mock_user
     app.dependency_overrides[get_db] = lambda: mock_db
@@ -88,14 +83,10 @@ def clear_dependencies():
     app.dependency_overrides.clear()
 
 
-def test_join_workspace_success(client):
+def test_join_workspace_success():
     mock_user = make_mock_user(user_id=1)
     mock_workspace = make_mock_workspace(workspace_id=10, name="Test Workspace")
-    mock_db = make_mock_db(
-        workspace=mock_workspace,
-        existing_member=None,
-        workspace_count=2,
-    )
+    mock_db = make_mock_db(workspace=mock_workspace, existing_member=None, workspace_count=2)
     override_dependencies(mock_user, mock_db)
 
     response = client.post("/workspaces/join", json={"invite_code": "ABC123"})
@@ -105,7 +96,7 @@ def test_join_workspace_success(client):
     clear_dependencies()
 
 
-def test_join_workspace_dangerous_invite_code(client):
+def test_join_workspace_dangerous_invite_code():
     mock_user = make_mock_user()
     mock_db = make_mock_db()
     override_dependencies(mock_user, mock_db)
@@ -116,9 +107,9 @@ def test_join_workspace_dangerous_invite_code(client):
     clear_dependencies()
 
 
-def test_join_workspace_invalid_invite_code(client):
+def test_join_workspace_invalid_invite_code():
     mock_user = make_mock_user()
-    mock_db = make_mock_db(workspace=None) 
+    mock_db = make_mock_db(workspace=None)
     override_dependencies(mock_user, mock_db)
 
     response = client.post("/workspaces/join", json={"invite_code": "INVALID"})
@@ -128,14 +119,11 @@ def test_join_workspace_invalid_invite_code(client):
     clear_dependencies()
 
 
-def test_join_workspace_already_a_member(client):
+def test_join_workspace_already_a_member():
     mock_user = make_mock_user(user_id=1)
     mock_workspace = make_mock_workspace(workspace_id=10)
-    mock_existing_member = MagicMock() 
-    mock_db = make_mock_db(
-        workspace=mock_workspace,
-        existing_member=mock_existing_member,
-    )
+    mock_existing_member = MagicMock()
+    mock_db = make_mock_db(workspace=mock_workspace, existing_member=mock_existing_member)
     override_dependencies(mock_user, mock_db)
 
     response = client.post("/workspaces/join", json={"invite_code": "ABC123"})
@@ -145,14 +133,10 @@ def test_join_workspace_already_a_member(client):
     clear_dependencies()
 
 
-def test_join_workspace_exceeds_limit(client):
+def test_join_workspace_exceeds_limit():
     mock_user = make_mock_user(user_id=1)
     mock_workspace = make_mock_workspace(workspace_id=10)
-    mock_db = make_mock_db(
-        workspace=mock_workspace,
-        existing_member=None,
-        workspace_count=5, 
-    )
+    mock_db = make_mock_db(workspace=mock_workspace, existing_member=None, workspace_count=5)
     override_dependencies(mock_user, mock_db)
 
     response = client.post("/workspaces/join", json={"invite_code": "ABC123"})
@@ -162,14 +146,10 @@ def test_join_workspace_exceeds_limit(client):
     clear_dependencies()
 
 
-def test_join_workspace_at_exactly_limit_boundary(client):
+def test_join_workspace_at_exactly_limit_boundary():
     mock_user = make_mock_user(user_id=1)
     mock_workspace = make_mock_workspace(workspace_id=10)
-    mock_db = make_mock_db(
-        workspace=mock_workspace,
-        existing_member=None,
-        workspace_count=4,
-    )
+    mock_db = make_mock_db(workspace=mock_workspace, existing_member=None, workspace_count=4)
     override_dependencies(mock_user, mock_db)
 
     response = client.post("/workspaces/join", json={"invite_code": "ABC123"})
@@ -178,14 +158,10 @@ def test_join_workspace_at_exactly_limit_boundary(client):
     clear_dependencies()
 
 
-def test_join_workspace_new_member_row_is_created(client):
+def test_join_workspace_new_member_row_is_created():
     mock_user = make_mock_user(user_id=1)
     mock_workspace = make_mock_workspace(workspace_id=10)
-    mock_db = make_mock_db(
-        workspace=mock_workspace,
-        existing_member=None,
-        workspace_count=0,
-    )
+    mock_db = make_mock_db(workspace=mock_workspace, existing_member=None, workspace_count=0)
     override_dependencies(mock_user, mock_db)
 
     client.post("/workspaces/join", json={"invite_code": "ABC123"})
