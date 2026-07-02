@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes.auth import router as auth_router
 from routes.integrations import router as integrations_router
+from routes.workspaces import router as workspaces_router
 
 from models.user import User  # noqa: F401
 from models.verification import Verification  # noqa: F401
@@ -30,4 +31,5 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(workspaces_router)
 app.include_router(integrations_router)
