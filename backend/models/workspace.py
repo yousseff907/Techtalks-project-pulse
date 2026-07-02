@@ -1,10 +1,14 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from utils.database import Base
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from models.workspace_integration import WorkspaceIntegrations
 
 class Workspace(Base):
 	__tablename__ = "workspaces"
@@ -22,9 +26,11 @@ class Workspace(Base):
 	created_by: Mapped[int | None] = mapped_column(
 		Integer,
 		ForeignKey("users.id", ondelete="SET NULL"),
-		nullable=True,
+		nullable=True, index=True
 	)
 	
 	invite_code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
 	
 	invite_link: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+
+	integration: Mapped["WorkspaceIntegrations"] = relationship(back_populates="workspace", uselist=False)
