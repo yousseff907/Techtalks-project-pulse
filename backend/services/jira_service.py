@@ -7,9 +7,7 @@ class JiraService:
         self.auth = (email, api_token)
         self.session = requests.Session()
 
-    def fetch_users(self):
-        start_at = 0
-        max_results = 50
+    def fetch_users(self, start_at=0, max_results=50):
         all_users = []
 
         while True:
