@@ -7,7 +7,7 @@ class JiraService:
         self.auth = (email, api_token)
 
     def fetch_users(self, start_at=0, max_results=50):
-    all_users = []
+     all_users = []
 
     while True:
         response = requests.get(
@@ -28,7 +28,6 @@ class JiraService:
 
         all_users.extend(users)
 
-        # if we got less than max_results → last page
         if len(users) < max_results:
             break
 
@@ -42,6 +41,8 @@ class JiraService:
         }
         for u in all_users
     ]
+          
+
 
     def fetch_projects(self, start_at=0, max_results=50):
         all_projects = []
