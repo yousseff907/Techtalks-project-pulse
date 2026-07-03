@@ -3,6 +3,7 @@ import math
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel
 
+
 from utils.validators import is_dangerous, is_valid_email_format
 from utils.database import get_db, Session
 from utils.verification import generate_code
@@ -21,6 +22,7 @@ from models.workspace_member import WorkspaceMember
 from models.user import User
 from models.email_rate_limit import EmailRateLimit
 from models.verification import Verification
+from models.workspace_integration import WorkspaceIntegrations
 
 router = APIRouter()
 
@@ -203,6 +205,14 @@ def delete_account(db: Session = Depends(get_db), current_user: User = Depends(g
     workspaces_to_transfer = []
     
     for workspace in owned_workspaces:
+        member_count = db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace.id).count()
+        
+        if member_count <= 1:
+            db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace.id).delete()
+            db.query(WorkspaceIntegrations).filter(WorkspaceIntegrations.workspace_id == workspace.id).delete()
+            db.delete(workspace)
+            continue
+
         next_admin = db.query(WorkspaceMember).filter(
             WorkspaceMember.workspace_id == workspace.id,
             WorkspaceMember.role == "admin"
@@ -218,7 +228,6 @@ def delete_account(db: Session = Depends(get_db), current_user: User = Depends(g
         
     for workspace, new_owner_id in workspaces_to_transfer:
         workspace.created_by = new_owner_id
-        
         db.query(WorkspaceMember).filter(
             WorkspaceMember.workspace_id == workspace.id,
             WorkspaceMember.user_id == new_owner_id
@@ -226,7 +235,7 @@ def delete_account(db: Session = Depends(get_db), current_user: User = Depends(g
         
         
     db.query(User).filter(User.id == current_user.id).delete(synchronize_session=False)
-        
+    
     db.commit()
     
     return {"message": "Account deleted successfully"}
