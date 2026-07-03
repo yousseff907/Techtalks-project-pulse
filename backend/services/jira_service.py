@@ -42,3 +42,30 @@ class JiraService:
             }
             for u in all_users
         ]
+
+    def fetch_projects(self, start_at=0, max_results=50):
+        all_projects = []
+
+        while True:
+            response = requests.get(
+                f"{self.base_url}/rest/api/3/project/search",
+                params={
+                    "startAt": start_at,
+                    "maxResults": max_results
+                },
+                auth=self.auth,
+                headers={"Accept": "application/json"},
+            )
+
+            response.raise_for_status()
+            data = response.json()
+
+            projects = data.get("values", [])
+            all_projects.extend(projects)
+
+            if data.get("isLast", True):
+                break
+
+            start_at += max_results
+
+        return all_projects
