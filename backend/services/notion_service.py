@@ -10,6 +10,7 @@ class NotionService:
         return {
             "Authorization": f"Bearer {self.api_token}",
             "Notion-Version": "2022-06-28",
+            "Content-Type": "application/json"
         }
 
     def fetch_users(self):
@@ -29,8 +30,7 @@ class NotionService:
                 users.append({
                     "id": u.get("id", ""),
                     "name": u.get("name", ""),
-                    "email": u.get("person", {}).get("email", ""),
-                    "active": bool(u.get("is_active", False)),
+                    "email": u.get("person", {}).get("email", "")
                 })
 
             if data.get("has_more"):
@@ -57,8 +57,11 @@ class NotionService:
             data = response.json()
 
             for db in data.get("results", []):
-                title_array = db.get("title", [])
-                title = title_array[0].get("plain_text", "") if title_array else ""
+                title_array = db.get("title") or []
+                if len(title_array) > 0:
+                    title = title_array[0].get("plain_text", "Untitled")
+                else:
+                    title = "Untitled"
 
                 databases.append({
                     "id": db.get("id", ""),
