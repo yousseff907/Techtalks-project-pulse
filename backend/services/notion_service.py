@@ -10,25 +10,35 @@ class NotionService:
         return {
             "Authorization": f"Bearer {self.api_token}",
             "Notion-Version": "2022-06-28",
+            "Content-Type": "application/json"
         }
 
     def fetch_users(self):
-        response = requests.get(
-            f"{self.base_url}/users",
-            headers=self._headers(),
-        )
-        response.raise_for_status()
-        users = response.json().get("results", [])
+        params = {}
+        users = []
 
-        return [
-            {
-                "id": u.get("id", ""),
-                "name": u.get("name", ""),
-                "email": u.get("person", {}).get("email", ""),
-                "active": bool(u.get("is_active", False)),
-            }
-            for u in users
-        ]
+        while True:
+            response = requests.get(
+                f"{self.base_url}/users",
+                headers=self._headers(),
+                params=params,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            for u in data.get("results", []):
+                users.append({
+                    "id": u.get("id", ""),
+                    "name": u.get("name", ""),
+                    "email": u.get("person", {}).get("email", "")
+                })
+
+            if data.get("has_more"):
+                params["start_cursor"] = data.get("next_cursor")
+            else:
+                break
+
+        return users
 
     def fetch_databases(self):
         url = f"{self.base_url}/search"
@@ -47,8 +57,11 @@ class NotionService:
             data = response.json()
 
             for db in data.get("results", []):
-                title_array = db.get("title", [])
-                title = title_array[0].get("plain_text", "") if title_array else ""
+                title_array = db.get("title") or []
+                if len(title_array) > 0:
+                    title = title_array[0].get("plain_text", "Untitled")
+                else:
+                    title = "Untitled"
 
                 databases.append({
                     "id": db.get("id", ""),
