@@ -23,7 +23,7 @@ def test_fetch_users_pagination():
     page2.raise_for_status = MagicMock()
 
     with patch("services.jira_service.requests.Session.get", side_effect=[page1, page2]):
-        users = service.fetch_users()
+        users = service.fetch_users(max_results=2)
 
     assert len(users) == 3
     assert users[0]["id"] == "1"
