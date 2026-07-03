@@ -5,40 +5,29 @@ class JiraService:
     def __init__(self, base_url, email, api_token):
         self.base_url = base_url
         self.auth = (email, api_token)
-        self.session = requests.Session()
 
     def fetch_users(self, start_at=0, max_results=50):
-        all_users = []
+        response = requests.get(
+            f"{self.base_url}/rest/api/3/user/search",
+            auth=self.auth,
+            headers={"Accept": "application/json"},
+            params={
+                "startAt": start_at,
+                "maxResults": max_results
+            },
+        )
 
-        while True:
-            response = self.session.get(
-                f"{self.base_url}/rest/api/3/user/search",
-                auth=self.auth,
-                headers={"Accept": "application/json"},
-                params={"startAt": start_at, "maxResults": max_results},
-            )
+        response.raise_for_status()
+        users = response.json()
 
-            response.raise_for_status()
-            data = response.json()
-
-            users = data.get("values", [])
-            if not users:
-                break
-
-            all_users.extend(users)
-
-            if len(users) < max_results:
-                break
-
-            start_at += max_results
-
+        # API returns a plain list
         return [
             {
                 "id": u.get("accountId", ""),
                 "name": u.get("displayName", ""),
                 "email": u.get("emailAddress", ""),
             }
-            for u in all_users
+            for u in users
         ]
 
     def fetch_projects(self, start_at=0, max_results=50):
@@ -47,12 +36,12 @@ class JiraService:
         while True:
             response = requests.get(
                 f"{self.base_url}/rest/api/3/project/search",
+                auth=self.auth,
+                headers={"Accept": "application/json"},
                 params={
                     "startAt": start_at,
                     "maxResults": max_results
                 },
-                auth=self.auth,
-                headers={"Accept": "application/json"},
             )
 
             response.raise_for_status()
