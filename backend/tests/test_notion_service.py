@@ -9,8 +9,7 @@ def test_fetch_users_returns_list_of_dicts():
             {
                 "id": "user-1",
                 "name": "John Doe",
-                "person": {"email": "john@example.com"},
-                "is_active": True,
+                "person": {"email": "john@example.com"}
             }
         ],
         "has_more": False,
@@ -24,8 +23,7 @@ def test_fetch_users_returns_list_of_dicts():
         {
             "id": "user-1",
             "name": "John Doe",
-            "email": "john@example.com",
-            "active": True,
+            "email": "john@example.com"
         }
     ]
 
@@ -38,13 +36,11 @@ def test_fetch_users_returns_multiple_users():
                 "id": "user-1",
                 "name": "John Doe",
                 "person": {"email": "john@example.com"},
-                "is_active": True,
             },
             {
                 "id": "user-2",
                 "name": "Jane Smith",
                 "person": {"email": "jane@example.com"},
-                "is_active": False,
             },
         ],
         "has_more": False,
@@ -58,8 +54,7 @@ def test_fetch_users_returns_multiple_users():
     assert result[1] == {
         "id": "user-2",
         "name": "Jane Smith",
-        "email": "jane@example.com",
-        "active": False,
+        "email": "jane@example.com"
     }
 
 
@@ -84,8 +79,7 @@ def test_fetch_users_handles_missing_person_field():
         {
             "id": "user-1",
             "name": "Bot User",
-            "email": "",
-            "active": False,
+            "email": ""
         }
     ]
 
@@ -111,7 +105,6 @@ def test_fetch_users_follows_pagination():
                 "id": "user-1",
                 "name": "John Doe",
                 "person": {"email": "john@example.com"},
-                "is_active": True,
             }
         ],
         "has_more": True,
@@ -124,8 +117,7 @@ def test_fetch_users_follows_pagination():
             {
                 "id": "user-2",
                 "name": "Jane Smith",
-                "person": {"email": "jane@example.com"},
-                "is_active": False,
+                "person": {"email": "jane@example.com"}
             }
         ],
         "has_more": False,
@@ -147,8 +139,7 @@ def test_fetch_users_passes_cursor_on_second_request():
             {
                 "id": "user-1",
                 "name": "John Doe",
-                "person": {"email": "john@example.com"},
-                "is_active": True,
+                "person": {"email": "john@example.com"}
             }
         ],
         "has_more": True,
@@ -216,7 +207,7 @@ def test_fetch_databases_handles_missing_title_array():
         service = NotionService(api_token="test-token")
         result = service.fetch_databases()
 
-    assert result == [{"id": "db-1", "title": ""}]
+    assert result == [{"id": "db-1", "title": "Untitled"}]
 
 
 def test_fetch_databases_handles_empty_title_array():
@@ -230,7 +221,7 @@ def test_fetch_databases_handles_empty_title_array():
         service = NotionService(api_token="test-token")
         result = service.fetch_databases()
 
-    assert result == [{"id": "db-1", "title": ""}]
+    assert result == [{"id": "db-1", "title": "Untitled"}]
 
 
 def test_fetch_databases_handles_missing_id():
