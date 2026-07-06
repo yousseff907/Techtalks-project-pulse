@@ -7,6 +7,8 @@ from models.workspace_member import WorkspaceMember
 from models.user import User
 from models.email_rate_limit import EmailRateLimit
 from models.verification import Verification
+from models.workspace_integration import WorkspaceIntegrations
+from models.workspace_data import WorkspaceData
 
 client = TestClient(app)
 
@@ -413,9 +415,6 @@ def test_delete_account_failed_workspace_has_no_admin(db_session, mock_user):
 
 
 def test_delete_account_success_transfers_ownership_to_oldest_admin(db_session, mock_user):
-    from models.workspace import Workspace
-    from models.workspace_member import WorkspaceMember
-
     owner = User(username="workspaceowner", email="wsowner@example.com", is_verified=True)
     admin_old = User(username="oldadmin", email="oldadmin@example.com", is_verified=True)
     admin_new = User(username="newadmin", email="newadmin@example.com", is_verified=True)
@@ -452,24 +451,66 @@ def test_delete_account_success_transfers_ownership_to_oldest_admin(db_session, 
     assert db_session.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == ws.id, WorkspaceMember.user_id == admin_old.id).first() is not None
     
 
-def test_delete_account_solo_owner_success(db_session, mock_user):
-    user = User(username="solo_user", email="solo@example.com", is_verified=True)
+def test_delete_account_sole_member_workspace_deleted(db_session, mock_user):
+    user = User(username="sole_acc_owner", email="sole_acc@example.com", is_verified=True)
     db_session.add(user)
-    db_session.flush() 
-    user_id = user.id 
+    db_session.flush()
     
-    mock_user.id = user_id
+    user_id = user.id
 
-    workspace = Workspace(name="Solo", created_by=user_id, invite_code="s1", invite_link="s")
+    workspace = Workspace(name="Solo Account WS", created_by=user_id, invite_code="acc_solo", invite_link="link_acc_solo")
     db_session.add(workspace)
-    db_session.flush() 
-    
-    db_session.add(WorkspaceMember(user_id=user_id, workspace_id=workspace.id, role="owner"))
+    db_session.flush()
+    workspace_id = workspace.id 
+
+    member = WorkspaceMember(user_id=user_id, workspace_id=workspace_id, role="owner")
+    integration = WorkspaceIntegrations(workspace_id=workspace_id)
+    db_session.add_all([member, integration])
+    db_session.flush()
+
+    data_row = WorkspaceData(integration_id=workspace_id, type="task", source="jira", title="Task Clean")
+    db_session.add(data_row)
     db_session.commit()
 
+    mock_user.id = user_id
     response = client.delete("/auth/me")
     assert response.status_code == 200
+    assert response.json()["message"] == "Account deleted successfully"
 
     assert db_session.query(User).filter(User.id == user_id).first() is None
+    assert db_session.query(Workspace).filter(Workspace.id == workspace_id).first() is None
+    assert db_session.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace_id).first() is None
+    assert db_session.query(WorkspaceIntegrations).filter(WorkspaceIntegrations.workspace_id == workspace_id).first() is None
+    assert db_session.query(WorkspaceData).filter(WorkspaceData.integration_id == workspace_id).first() is None
+
+
+def test_delete_account_rollback_on_failure(db_session, mock_user):
+    user = User(username="rb_owner", email="rb_owner@example.com", is_verified=True)
+    other_user = User(username="stranded_member", email="stranded@example.com", is_verified=True)
+    db_session.add_all([user, other_user])
+    db_session.flush()
+
+    ws_solo = Workspace(name="Surviving Solo WS", created_by=user.id, invite_code="rb_solo", invite_link="link_rb_solo")
+    db_session.add(ws_solo)
+    db_session.flush()
+    db_session.add(WorkspaceMember(user_id=user.id, workspace_id=ws_solo.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=ws_solo.id))
+
+    ws_blocked = Workspace(name="Blocked WS", created_by=user.id, invite_code="rb_block", invite_link="link_rb_block")
+    db_session.add(ws_blocked)
+    db_session.flush()
+    db_session.add(WorkspaceMember(user_id=user.id, workspace_id=ws_blocked.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=other_user.id, workspace_id=ws_blocked.id, role="member"))
+    db_session.commit()
+
+    mock_user.id = user.id
+    response = client.delete("/auth/me")
     
-    assert db_session.query(Workspace).filter(Workspace.id == workspace.id).first() is None
+    assert response.status_code == 400
+    assert "You own workspaces with no admin" in response.json()["detail"]
+
+    assert db_session.query(Workspace).filter(Workspace.id == ws_solo.id).first() is not None
+    assert db_session.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == ws_solo.id).first() is not None
+    assert db_session.query(WorkspaceIntegrations).filter(WorkspaceIntegrations.workspace_id == ws_solo.id).first() is not None
+
+    assert db_session.query(User).filter(User.id == user.id).first() is not None

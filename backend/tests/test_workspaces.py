@@ -7,6 +7,8 @@ from utils.dependencies import get_current_user
 from models.user import User
 from models.workspace import Workspace
 from models.workspace_member import WorkspaceMember
+from models.workspace_integration import WorkspaceIntegrations
+from models.workspace_data import WorkspaceData
 
 client = TestClient(app)
 
@@ -232,7 +234,8 @@ def test_leave_workspace_as_owner_transfers_successfully(db_session, mock_user):
 
 def test_leave_workspace_as_owner_fails_without_admin(db_session, mock_user):
     owner = User(username="ws_owner3", email="owner3@example.com", is_verified=True)
-    db_session.add(owner)
+    regular_member = User(username="stranded_member", email="stranded@example.com", is_verified=True)
+    db_session.add_all([owner, regular_member])
     db_session.flush()
     
     workspace = Workspace(name="No Admin Workspace", created_by=owner.id, invite_code="leave3", invite_link="link3")
@@ -240,6 +243,7 @@ def test_leave_workspace_as_owner_fails_without_admin(db_session, mock_user):
     db_session.flush()
     
     db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=regular_member.id, workspace_id=workspace.id, role="member"))
     db_session.commit()
     
     mock_user.id = owner.id
@@ -415,3 +419,94 @@ def test_update_workspace_name_strips_whitespace(db_session, mock_user):
 
 	db_session.refresh(workspace)
 	assert workspace.name == "Padded Name"
+
+
+def test_leave_workspace_owner_sole_member_deletes_workspace(db_session, mock_user):
+    from models.workspace_integration import WorkspaceIntegrations
+
+    owner = User(username="solo_owner", email="solo@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(name="Solo Workspace", created_by=owner.id, invite_code="solo1", invite_link="linksolo1")
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.commit()
+
+    db_session.add(WorkspaceData(integration_id=workspace.id, type="task", source="jira", title="Cascade Task"))
+    db_session.commit()
+	
+    mock_user.id = owner.id
+    response = client.delete(f"/workspaces/{workspace.id}/leave")
+    
+    assert response.status_code == 200
+    assert "Workspace deleted successfully as you were the only member" in response.json()["message"]
+    assert db_session.query(WorkspaceData).filter(WorkspaceData.integration_id == workspace.id).first() is None
+    assert db_session.query(Workspace).filter(Workspace.id == workspace.id).first() is None
+    assert db_session.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace.id).first() is None
+    assert db_session.query(WorkspaceIntegrations).filter(WorkspaceIntegrations.workspace_id == workspace.id).first() is None
+
+#Delete workspace tests
+
+def test_delete_workspace_success(db_session, mock_user):
+    
+
+    owner = User(username="del_owner", email="del_owner@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(name="To Delete", created_by=owner.id, invite_code="del1", invite_link="linkdel1")
+    db_session.add(workspace)
+    db_session.flush()
+
+    member = WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner")
+    integration = WorkspaceIntegrations(workspace_id=workspace.id)
+    db_session.add_all([member, integration])
+    db_session.flush()
+
+    data_row = WorkspaceData(integration_id=workspace.id, type="task", source="jira", title="Cascade Task")
+    db_session.add(data_row)
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.delete(f"/workspaces/{workspace.id}")
+    assert response.status_code == 200
+    assert response.json()["message"] == "Workspace deleted successfully"
+
+    assert db_session.query(Workspace).filter(Workspace.id == workspace.id).first() is None
+    assert db_session.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace.id).first() is None
+    assert db_session.query(WorkspaceIntegrations).filter(WorkspaceIntegrations.workspace_id == workspace.id).first() is None
+    assert db_session.query(WorkspaceData).filter(WorkspaceData.integration_id == workspace.id).first() is None
+    
+
+
+def test_delete_workspace_forbidden_for_member(db_session, mock_user):
+    owner = User(username="del_owner2", email="del_owner2@example.com", is_verified=True)
+    member_user = User(username="del_member", email="del_member@example.com", is_verified=True)
+    db_session.add_all([owner, member_user])
+    db_session.flush()
+
+    workspace = Workspace(name="Stay Alive", created_by=owner.id, invite_code="del2", invite_link="linkdel2")
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=member_user.id, workspace_id=workspace.id, role="member"))
+    db_session.commit()
+
+    mock_user.id = member_user.id
+    response = client.delete(f"/workspaces/{workspace.id}")
+    assert response.status_code == 403
+    assert "Only the workspace owner" in response.json()["detail"]
+
+    assert db_session.query(Workspace).filter(Workspace.id == workspace.id).first() is not None
+
+
+def test_delete_workspace_not_found(db_session, mock_user):
+    mock_user.id = 1
+    response = client.delete("/workspaces/9999")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Workspace not found"

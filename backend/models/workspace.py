@@ -33,4 +33,4 @@ class Workspace(Base):
 	
 	invite_link: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
 
-	integration: Mapped["WorkspaceIntegrations"] = relationship(back_populates="workspace", uselist=False)
+	integration: Mapped["WorkspaceIntegrations"] = relationship(back_populates="workspace", uselist=False, passive_deletes=True)
