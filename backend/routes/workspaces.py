@@ -160,3 +160,36 @@ def leave_workspace(
     db.commit()
     
     return {"message": "Successfully left the workspace"}
+
+
+#Delete workspace
+
+@router.delete("/workspaces/{workspace_id}", status_code=200)
+def delete_workspace(
+    workspace_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    membership = (
+        db.query(WorkspaceMember)
+        .filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not membership or membership.role != "owner":
+        raise HTTPException(
+            status_code=403,
+            detail="Only the workspace owner can delete this workspace",
+        )
+
+    db.delete(workspace)
+    db.commit()
+
+    return {"message": "Workspace deleted successfully"}

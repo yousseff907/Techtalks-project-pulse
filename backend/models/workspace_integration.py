@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 class WorkspaceIntegrations(Base):
 	__tablename__ = "workspace_integrations"
 
-	workspace_id: Mapped[int] = mapped_column(Integer, ForeignKey("workspaces.id"), primary_key=True, index=True)
+	workspace_id: Mapped[int] = mapped_column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True, index=True)
 
 	jira_api_key: Mapped[str | None] = mapped_column(String, nullable=True)
 
