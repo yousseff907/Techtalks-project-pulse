@@ -294,12 +294,15 @@ def test_leave_workspace_owner_sole_member_deletes_workspace(db_session, mock_us
     db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
     db_session.commit()
 
+    db_session.add(WorkspaceData(integration_id=workspace.id, type="task", source="jira", title="Cascade Task"))
+    db_session.commit()
+	
     mock_user.id = owner.id
     response = client.delete(f"/workspaces/{workspace.id}/leave")
     
     assert response.status_code == 200
     assert "Workspace deleted successfully as you were the only member" in response.json()["message"]
-
+    assert db_session.query(WorkspaceData).filter(WorkspaceData.integration_id == workspace.id).first() is None
     assert db_session.query(Workspace).filter(Workspace.id == workspace.id).first() is None
     assert db_session.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace.id).first() is None
     assert db_session.query(WorkspaceIntegrations).filter(WorkspaceIntegrations.workspace_id == workspace.id).first() is None
