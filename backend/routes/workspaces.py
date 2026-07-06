@@ -110,3 +110,53 @@ def join_workspace(
         "workspace_id": workspace.id,
         "name": workspace.name,
     }
+
+
+@router.delete("/workspaces/{workspace_id}/leave", status_code=200)
+def leave_workspace(
+    workspace_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    membership = (
+        db.query(WorkspaceMember)
+        .filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not membership:
+        raise HTTPException(
+            status_code=404,
+            detail="You are not a member of this workspace",
+        )
+
+    if membership.role == "owner":
+        next_admin = (
+            db.query(WorkspaceMember)
+            .filter(
+                WorkspaceMember.workspace_id == workspace_id,
+                WorkspaceMember.role == "admin",
+            )
+            .order_by(WorkspaceMember.joined_at.asc())
+            .first()
+        )
+
+        if not next_admin:
+            raise HTTPException(
+                status_code=400,
+                detail="You own workspaces with no admin. Please promote a member to admin or delete the workspace before leaving",
+            )
+
+        workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+        if workspace:
+            workspace.created_by = next_admin.user_id
+            
+        next_admin.role = "owner"
+
+    db.delete(membership)
+    db.commit()
+
+    return {"message": "Successfully left the workspace"}
