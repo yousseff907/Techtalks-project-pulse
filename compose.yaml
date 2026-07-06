@@ -14,6 +14,13 @@ services:
       interval: 5s
       timeout: 10s
       retries: 5
+  
+  redis:
+    image: redis
+    networks:
+      - project-pulse
+    ports:
+      - "6379:6379"
 
 volumes:
   postgres:
