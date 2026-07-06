@@ -247,3 +247,29 @@ def test_leave_workspace_as_owner_fails_without_admin(db_session, mock_user):
     
     assert response.status_code == 400
     assert "Please promote a member to admin" in response.json()["detail"]
+
+def test_leave_workspace_not_found(db_session, mock_user):
+    mock_user.id = 1
+    response = client.delete("/workspaces/9999/leave")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Workspace not found"
+
+
+def test_leave_workspace_not_a_member(db_session, mock_user):
+    owner = User(username="ws_owner", email="owner@example.com", is_verified=True)
+    non_member = User(username="non_member", email="nonmember@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.add(non_member)
+    db_session.flush()
+
+    workspace = Workspace(name="Test Workspace", created_by=owner.id, invite_code="leave_code_1", invite_link="link_1")
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.commit()
+
+    mock_user.id = non_member.id
+    response = client.delete(f"/workspaces/{workspace.id}/leave")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "You are not a member of this workspace"

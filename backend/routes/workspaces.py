@@ -118,6 +118,11 @@ def leave_workspace(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    
+    workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
     membership = (
         db.query(WorkspaceMember)
         .filter(
@@ -126,7 +131,6 @@ def leave_workspace(
         )
         .first()
     )
-
     if not membership:
         raise HTTPException(
             status_code=404,
@@ -143,20 +147,16 @@ def leave_workspace(
             .order_by(WorkspaceMember.joined_at.asc())
             .first()
         )
-
         if not next_admin:
             raise HTTPException(
                 status_code=400,
                 detail="You own workspaces with no admin. Please promote a member to admin or delete the workspace before leaving",
             )
-
-        workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
-        if workspace:
-            workspace.created_by = next_admin.user_id
-            
+        
+        workspace.created_by = next_admin.user_id
         next_admin.role = "owner"
 
     db.delete(membership)
     db.commit()
-
+    
     return {"message": "Successfully left the workspace"}
