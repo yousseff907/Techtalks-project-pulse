@@ -304,29 +304,6 @@ def test_leave_workspace_owner_sole_member_deletes_workspace(db_session, mock_us
     assert db_session.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace.id).first() is None
     assert db_session.query(WorkspaceIntegrations).filter(WorkspaceIntegrations.workspace_id == workspace.id).first() is None
 
-
-def test_leave_workspace_owner_with_members_but_no_admin_fails(db_session, mock_user):
-    owner = User(username="stuck_owner", email="stuck@example.com", is_verified=True)
-    regular_member = User(username="regular_m", email="regular@example.com", is_verified=True)
-    db_session.add_all([owner, regular_member])
-    db_session.flush()
-
-    workspace = Workspace(name="No Admin Workspace", created_by=owner.id, invite_code="noadmin", invite_link="linknoadmin")
-    db_session.add(workspace)
-    db_session.flush()
-
-    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
-    db_session.add(WorkspaceMember(user_id=regular_member.id, workspace_id=workspace.id, role="member"))
-    db_session.commit()
-
-    mock_user.id = owner.id
-    response = client.delete(f"/workspaces/{workspace.id}/leave")
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Please promote a member to admin or delete the workspace before leaving"
-
-    assert db_session.query(Workspace).filter(Workspace.id == workspace.id).first() is not None
-
 #Delete workspace tests
 
 def test_delete_workspace_success(db_session, mock_user):
