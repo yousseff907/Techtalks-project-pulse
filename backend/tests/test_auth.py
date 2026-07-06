@@ -415,9 +415,6 @@ def test_delete_account_failed_workspace_has_no_admin(db_session, mock_user):
 
 
 def test_delete_account_success_transfers_ownership_to_oldest_admin(db_session, mock_user):
-    from models.workspace import Workspace
-    from models.workspace_member import WorkspaceMember
-
     owner = User(username="workspaceowner", email="wsowner@example.com", is_verified=True)
     admin_old = User(username="oldadmin", email="oldadmin@example.com", is_verified=True)
     admin_new = User(username="newadmin", email="newadmin@example.com", is_verified=True)
@@ -455,7 +452,6 @@ def test_delete_account_success_transfers_ownership_to_oldest_admin(db_session, 
     
 
 def test_delete_account_sole_member_workspace_deleted(db_session, mock_user):
-    
     user = User(username="sole_acc_owner", email="sole_acc@example.com", is_verified=True)
     db_session.add(user)
     db_session.flush()
@@ -489,8 +485,6 @@ def test_delete_account_sole_member_workspace_deleted(db_session, mock_user):
 
 
 def test_delete_account_rollback_on_failure(db_session, mock_user):
-    from models.workspace_integration import WorkspaceIntegrations
-
     user = User(username="rb_owner", email="rb_owner@example.com", is_verified=True)
     other_user = User(username="stranded_member", email="stranded@example.com", is_verified=True)
     db_session.add_all([user, other_user])
