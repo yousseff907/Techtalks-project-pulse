@@ -298,7 +298,7 @@ def test_leave_workspace_owner_sole_member_deletes_workspace(db_session, mock_us
     response = client.delete(f"/workspaces/{workspace.id}/leave")
     
     assert response.status_code == 200
-    assert "Workspace deleted successfully as you were the sole member" in response.json()["message"]
+    assert "Workspace deleted successfully as you were the only member" in response.json()["message"]
 
     assert db_session.query(Workspace).filter(Workspace.id == workspace.id).first() is None
     assert db_session.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace.id).first() is None
