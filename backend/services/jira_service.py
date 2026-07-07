@@ -13,14 +13,13 @@ class JiraService:
             headers={"Accept": "application/json"},
             params={
                 "startAt": start_at,
-                "maxResults": max_results
+                "maxResults": max_results,
             },
         )
 
         response.raise_for_status()
         users = response.json()
 
-        # API returns a plain list
         return [
             {
                 "id": u.get("accountId", ""),
@@ -40,7 +39,7 @@ class JiraService:
                 headers={"Accept": "application/json"},
                 params={
                     "startAt": start_at,
-                    "maxResults": max_results
+                    "maxResults": max_results,
                 },
             )
 
@@ -56,7 +55,7 @@ class JiraService:
             start_at += max_results
 
         return all_projects
-    
+
     def fetch_issues(self):
         url = f"{self.base_url}/rest/api/3/search"
 
@@ -65,19 +64,17 @@ class JiraService:
         issues = []
 
         while True:
-            params = {
-                "startAt": start_at,
-                "maxResults": max_results,
-            }
-
             response = requests.get(
                 url,
                 auth=self.auth,
                 headers={"Accept": "application/json"},
-                params=params,
+                params={
+                    "startAt": start_at,
+                    "maxResults": max_results,
+                },
             )
-            response.raise_for_status()
 
+            response.raise_for_status()
             data = response.json()
 
             page_issues = data.get("issues", [])
