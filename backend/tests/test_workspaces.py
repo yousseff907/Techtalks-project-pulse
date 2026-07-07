@@ -461,6 +461,7 @@ def test_rotate_invite_code_collision_handling():
             mock_query.filter.return_value.first.return_value = mock_member
         elif model == Workspace:
             mock_query.filter.return_value.first.return_value = mock_workspace
+            mock_query.count.return_value = 3  # any real int works
         return mock_query
 
     mock_db.query.side_effect = query_side_effect
