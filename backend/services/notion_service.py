@@ -27,10 +27,11 @@ class NotionService:
             data = response.json()
 
             for u in data.get("results", []):
+                person_data = u.get("person") or {}
                 users.append({
                     "id": u.get("id", ""),
                     "name": u.get("name", ""),
-                    "email": u.get("person", {}).get("email", "")
+                    "email": person_data.get("email", "")
                 })
 
             if data.get("has_more"):
