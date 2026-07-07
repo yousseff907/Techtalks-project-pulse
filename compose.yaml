@@ -7,9 +7,6 @@ services:
       - "8000:8000"
     env_file:
       - ./.env
-    environment:
-      - DATABASE_HOST=postgres
-      - REDIS_HOST=redis
     networks:
       - project-pulse
     depends_on:
@@ -40,6 +37,35 @@ services:
       - project-pulse
     ports:
       - "6379:6379"
+  
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: celery -A celery_app worker --loglevel=info
+    networks:
+      - project-pulse
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: celery -A celery_app beat --loglevel=info
+    networks:
+      - project-pulse
 
 volumes:
   postgres:
