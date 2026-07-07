@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from app import app
 from fastapi.testclient import TestClient
@@ -446,7 +446,6 @@ def test_rotate_invite_code_not_found(db_session, mock_user):
 
 
 def test_rotate_invite_code_collision_handling():
-    from unittest.mock import MagicMock, patch
 
     mock_user = make_mock_user(user_id=1)
 
