@@ -1,0 +1,62 @@
+# Git
+.git
+
+# Environment & Secrets
+.env
+.env.*
+.envrc
+
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# Type checkers / linters
+.mypy_cache/
+.pyre/
+.pytype/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Build artifacts
+build/
+dist/
+.eggs/
+*.egg-info/
+pip-wheel-metadata/
+
+# Local databases
+*.sqlite3
+*.db
+*.db-journal
+
+# Redis local dumps
+*.rdb
+*.aof
+
+# IDEs
+.idea/
+.vscode/
+
+# OS junk files
+.DS_Store
+Thumbs.db
