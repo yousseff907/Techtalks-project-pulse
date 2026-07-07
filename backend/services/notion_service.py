@@ -27,10 +27,11 @@ class NotionService:
             data = response.json()
 
             for u in data.get("results", []):
+                person_data = u.get("person") or {}
                 users.append({
                     "id": u.get("id", ""),
                     "name": u.get("name", ""),
-                    "email": u.get("person", {}).get("email", "")
+                    "email": person_data.get("email", "")
                 })
 
             if data.get("has_more"):
@@ -74,3 +75,21 @@ class NotionService:
                 break
 
         return databases
+    def fetch_tasks(self, database_id: str):
+        url = f"{self.base_url}/databases/{database_id}/query"
+        body = {}
+        tasks = []
+
+        while True:
+            response = requests.post(url, headers=self._headers(), json=body)
+            response.raise_for_status()
+            data = response.json()
+
+            tasks.extend(data.get("results", []))
+
+            if data.get("has_more"):
+                body["start_cursor"] = data.get("next_cursor")
+            else:
+                break
+
+        return tasks
