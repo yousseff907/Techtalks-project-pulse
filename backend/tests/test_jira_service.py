@@ -1,5 +1,5 @@
 from unittest.mock import Mock, patch
-
+from services.jira_service import JiraService
 
 def test_fetch_issues_pagination():
     first_response = Mock()
