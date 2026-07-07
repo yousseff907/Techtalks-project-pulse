@@ -279,6 +279,148 @@ def test_leave_workspace_not_a_member(db_session, mock_user):
     response = client.delete(f"/workspaces/{workspace.id}/leave")
     assert response.status_code == 404
     assert response.json()["detail"] == "You are not a member of this workspace"
+    
+
+
+# Update Workspace Name tests
+
+def test_update_workspace_name_success_as_owner(db_session, mock_user):
+	owner = User(username="rename_owner", email="rename_owner@example.com", is_verified=True)
+	db_session.add(owner)
+	db_session.flush()
+
+	workspace = Workspace(name="Old Name", created_by=owner.id, invite_code="rename1", invite_link="link_rename1")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.commit()
+
+	mock_user.id = owner.id
+	response = client.patch(f"/workspaces/{workspace.id}", json={"name": "New Name"})
+
+	assert response.status_code == 200
+	assert response.json() == {"workspace_id": workspace.id, "name": "New Name"}
+
+	db_session.refresh(workspace)
+	assert workspace.name == "New Name"
+
+
+def test_update_workspace_name_success_as_admin(db_session, mock_user):
+	owner = User(username="rename_owner2", email="rename_owner2@example.com", is_verified=True)
+	admin_user = User(username="rename_admin", email="rename_admin@example.com", is_verified=True)
+	db_session.add_all([owner, admin_user])
+	db_session.flush()
+
+	workspace = Workspace(name="Old Name", created_by=owner.id, invite_code="rename2", invite_link="link_rename2")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.add(WorkspaceMember(user_id=admin_user.id, workspace_id=workspace.id, role="admin"))
+	db_session.commit()
+
+	mock_user.id = admin_user.id
+	response = client.patch(f"/workspaces/{workspace.id}", json={"name": "Admin Renamed"})
+
+	assert response.status_code == 200
+	assert response.json() == {"workspace_id": workspace.id, "name": "Admin Renamed"}
+
+
+def test_update_workspace_name_forbidden_for_regular_member(db_session, mock_user):
+	owner = User(username="rename_owner3", email="rename_owner3@example.com", is_verified=True)
+	member_user = User(username="rename_member", email="rename_member@example.com", is_verified=True)
+	db_session.add_all([owner, member_user])
+	db_session.flush()
+
+	workspace = Workspace(name="Old Name", created_by=owner.id, invite_code="rename3", invite_link="link_rename3")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.add(WorkspaceMember(user_id=member_user.id, workspace_id=workspace.id, role="member"))
+	db_session.commit()
+
+	mock_user.id = member_user.id
+	response = client.patch(f"/workspaces/{workspace.id}", json={"name": "Hacked Name"})
+
+	assert response.status_code == 403
+	assert response.json()["detail"] == "Only the workspace owner or an admin can configure workspace settings"
+
+	db_session.refresh(workspace)
+	assert workspace.name == "Old Name"
+
+
+def test_update_workspace_name_not_found(db_session, mock_user):
+	mock_user.id = 1
+	response = client.patch("/workspaces/9999", json={"name": "Doesn't Matter"})
+
+	assert response.status_code == 404
+	assert response.json()["detail"] == "Workspace not found"
+
+
+def test_update_workspace_name_not_a_member(db_session, mock_user):
+	owner = User(username="rename_owner4", email="rename_owner4@example.com", is_verified=True)
+	non_member = User(username="rename_stranger", email="rename_stranger@example.com", is_verified=True)
+	db_session.add_all([owner, non_member])
+	db_session.flush()
+
+	workspace = Workspace(name="Old Name", created_by=owner.id, invite_code="rename4", invite_link="link_rename4")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.commit()
+
+	mock_user.id = non_member.id
+	response = client.patch(f"/workspaces/{workspace.id}", json={"name": "Sneaky Rename"})
+
+	assert response.status_code == 404
+	assert response.json()["detail"] == "You are not a member of this workspace"
+
+
+def test_update_workspace_name_dangerous_input(db_session, mock_user):
+	owner = User(username="rename_owner5", email="rename_owner5@example.com", is_verified=True)
+	db_session.add(owner)
+	db_session.flush()
+
+	workspace = Workspace(name="Old Name", created_by=owner.id, invite_code="rename5", invite_link="link_rename5")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.commit()
+
+	mock_user.id = owner.id
+	response = client.patch(f"/workspaces/{workspace.id}", json={"name": "<script>alert(1)</script>"})
+
+	assert response.status_code == 400
+	assert response.json()["detail"] == "Invalid name, contains dangerous characters"
+
+	db_session.refresh(workspace)
+	assert workspace.name == "Old Name"
+
+
+def test_update_workspace_name_strips_whitespace(db_session, mock_user):
+	owner = User(username="rename_owner6", email="rename_owner6@example.com", is_verified=True)
+	db_session.add(owner)
+	db_session.flush()
+
+	workspace = Workspace(name="Old Name", created_by=owner.id, invite_code="rename6", invite_link="link_rename6")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.commit()
+
+	mock_user.id = owner.id
+	response = client.patch(f"/workspaces/{workspace.id}", json={"name": "  Padded Name  "})
+
+	assert response.status_code == 200
+	assert response.json()["name"] == "Padded Name"
+
+	db_session.refresh(workspace)
+	assert workspace.name == "Padded Name"
 
 
 def test_leave_workspace_owner_sole_member_deletes_workspace(db_session, mock_user):
