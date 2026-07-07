@@ -19,7 +19,7 @@ services:
         condition: service_started  # Starts after redis container launches
 
   postgres:
-    image: postgres
+    image: postgres:17
     env_file:
       - .env
     networks:
