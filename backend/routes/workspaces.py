@@ -201,3 +201,62 @@ def delete_workspace(
     db.commit()
 
     return {"message": "Workspace deleted successfully"}
+
+
+@router.patch("/workspaces/{workspace_id}/invite-code", status_code=200)
+def rotate_workspace_invite_code(
+    workspace_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    membership = (
+        db.query(WorkspaceMember)
+        .filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not membership or membership.role not in ["owner", "admin"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Only workspace owners or admins can rotate the invite code",
+        )
+    
+    workspace_count = db.query(Workspace).count()
+    
+    for _ in range(0, workspace_count + 1):
+        new_code = secrets.token_urlsafe(16)
+
+        existing_workspace = (
+            db.query(Workspace)
+            .filter(
+                Workspace.invite_code == new_code,
+                Workspace.id != workspace_id,
+            )
+            .first()
+        )
+
+        if not existing_workspace:
+            workspace.invite_code = new_code
+            workspace.invite_link = APP_BASE_URL + "/" + new_code
+
+            db.commit()
+            db.refresh(workspace)
+
+            return {
+                "workspace_id": workspace.id,
+                "invite_code": workspace.invite_code,
+                "invite_link": workspace.invite_link,
+            }
+
+    raise HTTPException(
+        status_code=500,
+        detail="Failed to generate a unique invite code",
+    )
