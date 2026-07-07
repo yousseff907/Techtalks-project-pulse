@@ -30,9 +30,7 @@ def	create_workspace(request: CreateWorkspaceRequest, db: Session = Depends(get_
 	if workspace_count >= max_workspaces:
 		raise HTTPException(status_code=400, detail=f"You have reached the maximum number of workspaces ({max_workspaces})")
 
-	workspace_count = db.query(Workspace).count()
-
-	for _ in range (0, workspace_count + 1):
+	for _ in range (5):
 		try:
 			invitation_code = secrets.token_urlsafe(16)
 			new_workspace = Workspace(name=request.name, created_by=current_user.id, invite_code=invitation_code, invite_link=APP_BASE_URL+'/'+str(invitation_code))
