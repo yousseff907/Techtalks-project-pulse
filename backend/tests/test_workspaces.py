@@ -455,6 +455,33 @@ def test_rotate_invite_code_collision_handling():
 
 	mock_db = MagicMock()
 
+	def query_side_effect(model):
+		mock_query = MagicMock()
+		if model == WorkspaceMember:
+			mock_query.filter.return_value.first.return_value = mock_member
+		elif model == Workspace:
+			mock_query.filter.return_value.first.return_value = mock_workspace
+			mock_query.count.return_value = 3  # any real int works
+		return mock_query
+
+	mock_db.query.side_effect = query_side_effect
+
+	mock_db.commit.side_effect = [IntegrityError(None, None, None), None]
+
+	override_dependencies(mock_user, mock_db)
+
+	with patch("secrets.token_urlsafe") as mock_token:
+		mock_token.side_effect = ["colliding_code", "clean_code"]
+
+		response = client.patch("/workspaces/10/invite-code")
+
+	assert response.status_code == 200
+	assert response.json()["invite_code"] == "clean_code"
+	assert mock_db.commit.call_count == 2
+	assert mock_db.rollback.call_count == 1
+
+	clear_dependencies()
+
 
 # Get Workspace Details tests
 
@@ -591,29 +618,3 @@ def test_get_workspace_details_created_by_deleted_user(db_session, mock_user):
 
 	assert response.status_code == 200
 	assert response.json()["created_by"] == "Deleted User"
-	def query_side_effect(model):
-		mock_query = MagicMock()
-		if model == WorkspaceMember:
-			mock_query.filter.return_value.first.return_value = mock_member
-		elif model == Workspace:
-			mock_query.filter.return_value.first.return_value = mock_workspace
-			mock_query.count.return_value = 3  # any real int works
-		return mock_query
-
-	mock_db.query.side_effect = query_side_effect
-		
-	mock_db.commit.side_effect = [IntegrityError(None, None, None), None]
-
-	override_dependencies(mock_user, mock_db)
-
-	with patch("secrets.token_urlsafe") as mock_token:
-		mock_token.side_effect = ["colliding_code", "clean_code"]
-
-		response = client.patch("/workspaces/10/invite-code")
-
-	assert response.status_code == 200
-	assert response.json()["invite_code"] == "clean_code"
-	assert mock_db.commit.call_count == 2
-	assert mock_db.rollback.call_count == 1
-
-	clear_dependencies()
