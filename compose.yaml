@@ -1,12 +1,12 @@
 services:
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - ./.env
     environment:
       - DATABASE_HOST=postgres
       - REDIS_HOST=redis
