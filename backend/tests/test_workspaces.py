@@ -1,4 +1,6 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+from sqlalchemy.exc import IntegrityError
 
 from app import app
 from fastapi.testclient import TestClient
@@ -370,6 +372,88 @@ def test_delete_workspace_not_found(db_session, mock_user):
     assert response.json()["detail"] == "Workspace not found"
 
 
+#Generate invite code tests
+
+def test_rotate_invite_code_success_as_owner(db_session, mock_user):
+    owner = User(username="rot_owner", email="rot_owner@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(name="Rotate WS", created_by=owner.id, invite_code="oldcode123", invite_link="linkold")
+    db_session.add(workspace)
+    db_session.flush()
+
+    member = WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner")
+    db_session.add(member)
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.patch(f"/workspaces/{workspace.id}/invite-code")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["workspace_id"] == workspace.id
+    assert data["invite_code"] != "oldcode123"
+    assert data["invite_link"].endswith(data["invite_code"])
+
+    db_session.refresh(workspace)
+    assert workspace.invite_code == data["invite_code"]
+
+
+def test_rotate_invite_code_success_as_admin(db_session, mock_user):
+    owner = User(username="rot_owner2", email="rot_owner2@example.com", is_verified=True)
+    admin_user = User(username="rot_admin", email="rot_admin@example.com", is_verified=True)
+    db_session.add_all([owner, admin_user])
+    db_session.flush()
+
+    workspace = Workspace(name="Rotate WS Admin", created_by=owner.id, invite_code="oldcode456", invite_link="linkold2")
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=admin_user.id, workspace_id=workspace.id, role="admin"))
+    db_session.commit()
+
+    mock_user.id = admin_user.id
+    response = client.patch(f"/workspaces/{workspace.id}/invite-code")
+    assert response.status_code == 200
+
+
+def test_rotate_invite_code_forbidden_for_regular_member(db_session, mock_user):
+    owner = User(username="rot_owner3", email="rot_owner3@example.com", is_verified=True)
+    member_user = User(username="rot_member", email="rot_member@example.com", is_verified=True)
+    db_session.add_all([owner, member_user])
+    db_session.flush()
+
+    workspace = Workspace(name="Secure WS", created_by=owner.id, invite_code="secure123", invite_link="linksecure")
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=member_user.id, workspace_id=workspace.id, role="member"))
+    db_session.commit()
+
+    mock_user.id = member_user.id
+    response = client.patch(f"/workspaces/{workspace.id}/invite-code")
+
+    assert response.status_code == 403
+    assert "Only workspace owners or admins" in response.json()["detail"]
+
+
+def test_rotate_invite_code_not_found(db_session, mock_user):
+    mock_user.id = 1
+    response = client.patch("/workspaces/9999/invite-code")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Workspace not found"
+
+
+def test_rotate_invite_code_collision_handling():
+    mock_user = make_mock_user(user_id=1)
+    mock_workspace = make_mock_workspace(workspace_id=10)
+    mock_member = MagicMock()
+    mock_member.role = "owner"
+
+    mock_db = MagicMock()
 
 
 # Get Workspace Details tests
@@ -507,3 +591,29 @@ def test_get_workspace_details_created_by_deleted_user(db_session, mock_user):
 
 	assert response.status_code == 200
 	assert response.json()["created_by"] == "Deleted User"
+    def query_side_effect(model):
+        mock_query = MagicMock()
+        if model == WorkspaceMember:
+            mock_query.filter.return_value.first.return_value = mock_member
+        elif model == Workspace:
+            mock_query.filter.return_value.first.return_value = mock_workspace
+            mock_query.count.return_value = 3  # any real int works
+        return mock_query
+
+    mock_db.query.side_effect = query_side_effect
+    
+    mock_db.commit.side_effect = [IntegrityError(None, None, None), None]
+
+    override_dependencies(mock_user, mock_db)
+
+    with patch("secrets.token_urlsafe") as mock_token:
+        mock_token.side_effect = ["colliding_code", "clean_code"]
+
+        response = client.patch("/workspaces/10/invite-code")
+
+    assert response.status_code == 200
+    assert response.json()["invite_code"] == "clean_code"
+    assert mock_db.commit.call_count == 2
+    assert mock_db.rollback.call_count == 1
+
+    clear_dependencies()
