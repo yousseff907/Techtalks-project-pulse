@@ -210,7 +210,6 @@ def rotate_workspace_invite_code(
     db: Session = Depends(get_db),
 ):
     workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
-
     if not workspace:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
@@ -229,32 +228,21 @@ def rotate_workspace_invite_code(
             detail="Only workspace owners or admins can rotate the invite code",
         )
     
-    workspace_count = db.query(Workspace).count()
-    
-    for _ in range(0, workspace_count + 1):
+    for _ in range(5):
         new_code = secrets.token_urlsafe(16)
+        workspace.invite_code = new_code
+        workspace.invite_link = APP_BASE_URL + "/" + new_code
 
-        existing_workspace = (
-            db.query(Workspace)
-            .filter(
-                Workspace.invite_code == new_code,
-                Workspace.id != workspace_id,
-            )
-            .first()
-        )
-
-        if not existing_workspace:
-            workspace.invite_code = new_code
-            workspace.invite_link = APP_BASE_URL + "/" + new_code
-
+        try:
             db.commit()
             db.refresh(workspace)
-
             return {
                 "workspace_id": workspace.id,
                 "invite_code": workspace.invite_code,
                 "invite_link": workspace.invite_link,
             }
+        except IntegrityError:
+            db.rollback()
 
     raise HTTPException(
         status_code=500,
