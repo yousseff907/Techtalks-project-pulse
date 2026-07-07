@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres
+    env_file:
+      - .env
+    networks:
+      - project-pulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+  
+  redis:
+    image: redis
+    networks:
+      - project-pulse
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres:
+    # driver: local
+    # driver_opts:
+    #   type: none
+    #   o: bind
+    #   device: /home/admin/data/           [IN PROD]
+
+
+networks:
+  project-pulse:
+    driver: bridge 

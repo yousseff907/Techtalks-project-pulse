@@ -2,7 +2,7 @@ import requests
 
 
 class JiraService:
-    def init(self, base_url, email, api_token):
+    def __init__(self, base_url, email, api_token):
         self.base_url = base_url
         self.auth = (email, api_token)
 
