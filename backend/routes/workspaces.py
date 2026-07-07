@@ -201,3 +201,25 @@ def delete_workspace(
     db.commit()
 
     return {"message": "Workspace deleted successfully"}
+
+@router.get("/workspaces/{workspace_id}", status_code=200)
+def	get_workspace_details(workspace_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+	workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+	if not workspace:
+		raise HTTPException(status_code=404, detail="Workspace not found")
+
+	membership = (db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace_id, WorkspaceMember.user_id == current_user.id).first())
+	if not membership:
+		raise HTTPException(status_code=403, detail="You are not a member of this workspace")
+
+	created_by = db.query(User).filter(User.id == workspace.created_by).first()
+
+	member_count = db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace_id).count()
+
+	return {"id" : workspace_id,
+			"name" : workspace.name,
+			"invite_code" : workspace.invite_code,
+			"invite_link" : workspace.invite_link,
+			"created_by" : created_by.username if created_by else "Deleted User",
+			"created_at" : workspace.created_at,
+			"member_count" : member_count}
