@@ -228,8 +228,8 @@ def rotate_workspace_invite_code(
             detail="Only workspace owners or admins can rotate the invite code",
         )
 
-	workspace_count = db.query(Workspace).count()
-	
+    workspace_count = db.query(Workspace).count()
+
     for _ in range(0, workspace_count + 1):
         new_code = secrets.token_urlsafe(16)
         workspace.invite_code = new_code
