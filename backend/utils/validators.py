@@ -58,3 +58,12 @@ def is_valid_email_format(email: str) -> bool:
     if not email or len(email) > 254:
         return False
     return bool(EMAIL_REGEX.match(email))
+
+def is_blank(string: str) -> bool:
+    if not string:
+        return True
+
+    if string.strip() == "":
+        return True
+
+    return False
