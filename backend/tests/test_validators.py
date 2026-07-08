@@ -1,4 +1,4 @@
-from utils.validators import is_dangerous, is_valid_email_format
+from utils.validators import is_dangerous, is_valid_email_format, is_blank
 
 def test_is_dangerous_detects_script_injection():
 	assert is_dangerous("<script>")
@@ -20,3 +20,13 @@ def test_is_valid_email_format_returns_true_for_valid_email():
 
 def test_is_valid_email_format_returns_false_for_invalid_email():
     assert is_valid_email_format("invalid-email") is False
+
+def test_is_blank():
+    assert is_blank("") is True
+    assert is_blank("   ") is True
+    assert is_blank("\t") is True
+    assert is_blank("\n") is True
+
+    assert is_blank("hello") is False
+    assert is_blank(" hello ") is False
+    assert is_blank("a") is False
