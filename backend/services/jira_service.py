@@ -7,31 +7,18 @@ class JiraService:
         self.auth = (email, api_token)
 
     def fetch_users(self, start_at=0, max_results=50):
-        all_users = []
+        response = requests.get(
+            f"{self.base_url}/rest/api/3/user/search",
+            auth=self.auth,
+            headers={"Accept": "application/json"},
+            params={
+                "startAt": start_at,
+                "maxResults": max_results,
+            },
+        )
 
-        while True:
-            response = requests.get(
-                f"{self.base_url}/rest/api/3/user/search",
-                auth=self.auth,
-                headers={"Accept": "application/json"},
-                params={
-                    "startAt": start_at,
-                    "maxResults": max_results,
-                },
-            )
-
-            response.raise_for_status()
-            users = response.json()
-
-            if not users:
-                break
-
-            all_users.extend(users)
-
-            if len(users) < max_results:
-                break
-
-            start_at += max_results
+        response.raise_for_status()
+        users = response.json()
 
         return [
             {
@@ -39,7 +26,7 @@ class JiraService:
                 "name": u.get("displayName", ""),
                 "email": u.get("emailAddress", ""),
             }
-            for u in all_users
+            for u in users
         ]
 
     def fetch_projects(self, start_at=0, max_results=50):
@@ -68,3 +55,37 @@ class JiraService:
             start_at += max_results
 
         return all_projects
+
+    def fetch_issues(self, start_at=0, max_results=100, jql=""):
+        url = f"{self.base_url}/rest/api/3/search"
+
+        issues = []
+
+        while True:
+            response = requests.get(
+                url,
+                auth=self.auth,
+                headers={"Accept": "application/json"},
+                params={
+                    "startAt": start_at,
+                    "maxResults": max_results,
+                    "jql": jql,
+                },
+            )
+
+            response.raise_for_status()
+            data = response.json()
+
+            page_issues = data.get("issues", [])
+
+            if not page_issues:
+                break
+
+            issues.extend(page_issues)
+
+            if len(page_issues) < max_results:
+                break
+
+            start_at += max_results
+
+        return issues

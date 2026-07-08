@@ -1,59 +1,45 @@
-from unittest.mock import MagicMock, patch
-
+from unittest.mock import Mock, patch
 from services.jira_service import JiraService
 
 
-def test_fetch_users_pagination():
-    service = JiraService("https://fake-jira.com", "email", "token")
-
-    page1 = MagicMock()
-    page1.json.return_value = [
-        {
-            "accountId": "1",
-            "displayName": "A",
-            "emailAddress": "a@test.com",
-        },
-        {
-            "accountId": "2",
-            "displayName": "B",
-            "emailAddress": "b@test.com",
-        },
-    ]
-    page1.raise_for_status = MagicMock()
-
-    page2 = MagicMock()
-    page2.json.return_value = [
-        {
-            "accountId": "3",
-            "displayName": "C",
-            "emailAddress": "c@test.com",
-        }
-    ]
-    page2.raise_for_status = MagicMock()
-
-    with patch("services.jira_service.requests.get", side_effect=[page1, page2]):
-        users = service.fetch_users(max_results=2)
-
-    assert len(users) == 3
-    assert users[0]["id"] == "1"
-    assert users[1]["id"] == "2"
-    assert users[2]["id"] == "3"
-
-
-def test_fetch_projects():
-    service = JiraService("https://fake-jira.com", "email", "token")
-
-    mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "values": [{"id": "1", "key": "PROJ1"}],
-        "isLast": True,
+def test_fetch_issues_pagination():
+    first_response = Mock()
+    first_response.raise_for_status.return_value = None
+    first_response.json.return_value = {
+        "issues": [{"id": "1"}, {"id": "2"}],
     }
-    mock_response.raise_for_status = MagicMock()
 
-    with patch("services.jira_service.requests.get") as mock_get:
-        mock_get.return_value = mock_response
+    second_response = Mock()
+    second_response.raise_for_status.return_value = None
+    second_response.json.return_value = {
+        "issues": [{"id": "3"}],
+    }
 
-        projects = service.fetch_projects()
+    with patch(
+        "services.jira_service.requests.get",
+        side_effect=[first_response, second_response],
+    ) as mock_get:
+        service = JiraService(
+            "https://example.atlassian.net",
+            "email",
+            "token",
+        )
 
-    assert len(projects) == 1
-    assert projects[0]["key"] == "PROJ1"
+        issues = service.fetch_issues(
+            start_at=0,
+            max_results=2,
+            jql="project = TEST",
+        )
+
+        assert len(issues) == 3
+        assert issues[0]["id"] == "1"
+        assert issues[1]["id"] == "2"
+        assert issues[2]["id"] == "3"
+
+        assert mock_get.call_count == 2
+
+        assert mock_get.call_args_list[0].kwargs["params"] == {
+            "startAt": 0,
+            "maxResults": 2,
+            "jql": "project = TEST",
+        }
