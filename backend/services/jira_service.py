@@ -1,3 +1,4 @@
+from pydantic_core import Url
 import requests
 
 
@@ -56,11 +57,9 @@ class JiraService:
 
         return all_projects
 
-    def fetch_issues(self):
+    def fetch_issues(self, start_at=0, max_results=100, jql=""):
         url = f"{self.base_url}/rest/api/3/search"
 
-        start_at = 0
-        max_results = 100
         issues = []
 
         while True:
@@ -71,6 +70,7 @@ class JiraService:
                 params={
                     "startAt": start_at,
                     "maxResults": max_results,
+                    "jql": jql,
                 },
             )
 
@@ -78,11 +78,13 @@ class JiraService:
             data = response.json()
 
             page_issues = data.get("issues", [])
+
+            if not page_issues:
+                break
+
             issues.extend(page_issues)
 
-            total = data.get("total", 0)
-
-            if start_at + len(page_issues) >= total:
+            if len(page_issues) < max_results:
                 break
 
             start_at += max_results
