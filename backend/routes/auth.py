@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel
 
 
-from utils.validators import is_dangerous, is_valid_email_format
+from utils.validators import is_dangerous, is_valid_email_format, is_blank
 from utils.database import get_db, Session
 from utils.verification import generate_code
 
@@ -42,11 +42,14 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
 	try:
 		if is_dangerous(request.email) or is_dangerous(request.username) or not is_valid_email_format(request.email):
 			raise HTTPException(status_code=400, detail="Invalid Username or Email format")
+		
+		if is_blank(request.username):
+			raise HTTPException(status_code=400, detail="Username cannot be blank")
 
 		if db.query(User).filter(User.email == request.email).first() is not None:
 			raise HTTPException(status_code=409, detail="Email already registered")
 
-		user = User(username=request.username, email=request.email)
+		user = User(username=request.username.strip(), email=request.email)
 		db.add(user)
 		db.flush()
 

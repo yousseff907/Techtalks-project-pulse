@@ -71,6 +71,17 @@ def test_register_email_send_failure_rolls_back(mock_send_email, db_session):
     user = db_session.query(User).filter(User.email == "failuser@example.com").first()
     assert user is None
 
+def test_register_blank_username(db_session):
+    response = client.post("/auth/register", json={
+        "email": "blank@example.com",
+        "username": "   "
+    })
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Username cannot be blank"
+
+    user = db_session.query(User).filter(User.email == "blank@example.com").first()
+    assert user is None
 
 #Login
 

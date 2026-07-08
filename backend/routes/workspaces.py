@@ -6,7 +6,7 @@ from models.user import User
 from models.workspace import Workspace
 from models.workspace_member import WorkspaceMember
 from models.workspace_integration import WorkspaceIntegrations
-from utils.validators import is_dangerous
+from utils.validators import is_dangerous, is_blank
 from sqlalchemy.exc import IntegrityError
 import secrets
 from config import APP_BASE_URL
@@ -29,6 +29,9 @@ def	create_workspace(request: CreateWorkspaceRequest, db: Session = Depends(get_
 	if is_dangerous(request.name):
 		raise HTTPException(status_code=400, detail="Invalid name, contains dangerous characters")
 	
+	if is_blank(request.name):
+		raise HTTPException(status_code=400, detail="Name cannot be blank")
+
 	workspace_count = db.query(WorkspaceMember).filter(WorkspaceMember.user_id == current_user.id).count()
 	if workspace_count >= max_workspaces:
 		raise HTTPException(status_code=400, detail=f"You have reached the maximum number of workspaces ({max_workspaces})")
@@ -38,7 +41,7 @@ def	create_workspace(request: CreateWorkspaceRequest, db: Session = Depends(get_
 	for _ in range (0, workspace_count + 1):
 		try:
 			invitation_code = secrets.token_urlsafe(16)
-			new_workspace = Workspace(name=request.name, created_by=current_user.id, invite_code=invitation_code, invite_link=APP_BASE_URL+'/'+str(invitation_code))
+			new_workspace = Workspace(name=request.name.strip(), created_by=current_user.id, invite_code=invitation_code, invite_link=APP_BASE_URL+'/'+str(invitation_code))
 			db.add(new_workspace)
 			db.flush()
 			new_workspace.integration = WorkspaceIntegrations(workspace_id=new_workspace.id, workspace=new_workspace)
@@ -188,7 +191,10 @@ def	update_workspace_name(request: UpdateWorkspaceNameRequest, workspace_id: int
 
 	if is_dangerous(request.name):
 		raise HTTPException(status_code=400, detail="Invalid name, contains dangerous characters")
-
+      
+	if is_blank(request.name):
+		raise HTTPException(status_code=400, detail="Name cannot be blank")
+      
 	workspace.name = request.name.strip()
 	db.commit()
 	db.refresh(workspace)
