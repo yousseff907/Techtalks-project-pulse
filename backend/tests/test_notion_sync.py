@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch, call
+
+from unittest.mock import MagicMock, patch
 
 from models.workspace_data import WorkspaceData
 from models.workspace_integration import WorkspaceIntegrations
@@ -111,7 +111,7 @@ def test_workspace_data_rows_have_correct_fixed_fields():
 
         gather_and_store_notion_users(integration_id=42, db=mock_db)
 
-    added_rows = [call.args[0] for call in mock_db.add.call_args_list]
+    added_rows = [c.args[0] for c in mock_db.add.call_args_list]
 
     for row in added_rows:
         assert isinstance(row, WorkspaceData)
@@ -129,7 +129,7 @@ def test_workspace_data_payload_contains_normalized_fields():
 
         gather_and_store_notion_users(integration_id=1, db=mock_db)
 
-    added_rows = [call.args[0] for call in mock_db.add.call_args_list]
+    added_rows = [c.args[0] for c in mock_db.add.call_args_list]  # ← call → c
 
     assert added_rows[0].payload == {
         "id": "user-1",
