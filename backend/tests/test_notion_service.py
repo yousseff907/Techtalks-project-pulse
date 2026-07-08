@@ -299,3 +299,97 @@ def test_fetch_databases_passes_cursor_on_second_request():
     # Confirm the second call included the cursor in the request body
     second_call_body = mock_post.call_args_list[1].kwargs["json"]
     assert second_call_body.get("start_cursor") == "cursor-xyz"
+
+
+def test_fetch_tasks_returns_raw_results():
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "results": [
+            {"id": "task-1", "object": "page"},
+            {"id": "task-2", "object": "page"},
+        ],
+        "has_more": False,
+    }
+
+    with patch("requests.post", return_value=mock_response):
+        service = NotionService(api_token="test-token")
+        result = service.fetch_tasks(database_id="db-123")
+
+    assert result == [
+        {"id": "task-1", "object": "page"},
+        {"id": "task-2", "object": "page"},
+    ]
+
+
+def test_fetch_tasks_returns_empty_list_when_no_results():
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "results": [],
+        "has_more": False,
+    }
+
+    with patch("requests.post", return_value=mock_response):
+        service = NotionService(api_token="test-token")
+        result = service.fetch_tasks(database_id="db-123")
+
+    assert result == []
+
+
+def test_fetch_tasks_uses_correct_url():
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "results": [],
+        "has_more": False,
+    }
+
+    with patch("requests.post", return_value=mock_response) as mock_post:
+        service = NotionService(api_token="test-token")
+        service.fetch_tasks(database_id="db-123")
+
+    called_url = mock_post.call_args[0][0]
+    assert called_url == "https://api.notion.com/v1/databases/db-123/query"
+
+
+def test_fetch_tasks_follows_pagination():
+    first_page = MagicMock()
+    first_page.json.return_value = {
+        "results": [{"id": "task-1", "object": "page"}],
+        "has_more": True,
+        "next_cursor": "cursor-abc",
+    }
+
+    second_page = MagicMock()
+    second_page.json.return_value = {
+        "results": [{"id": "task-2", "object": "page"}],
+        "has_more": False,
+    }
+
+    with patch("requests.post", side_effect=[first_page, second_page]):
+        service = NotionService(api_token="test-token")
+        result = service.fetch_tasks(database_id="db-123")
+
+    assert len(result) == 2
+    assert result[0]["id"] == "task-1"
+    assert result[1]["id"] == "task-2"
+
+
+def test_fetch_tasks_passes_cursor_on_second_request():
+    first_page = MagicMock()
+    first_page.json.return_value = {
+        "results": [{"id": "task-1", "object": "page"}],
+        "has_more": True,
+        "next_cursor": "cursor-xyz",
+    }
+
+    second_page = MagicMock()
+    second_page.json.return_value = {
+        "results": [],
+        "has_more": False,
+    }
+
+    with patch("requests.post", side_effect=[first_page, second_page]) as mock_post:
+        service = NotionService(api_token="test-token")
+        service.fetch_tasks(database_id="db-123")
+
+    second_call_body = mock_post.call_args_list[1].kwargs["json"]
+    assert second_call_body.get("start_cursor") == "cursor-xyz"
