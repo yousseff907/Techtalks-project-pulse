@@ -9,7 +9,7 @@ class WorkspaceData(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
-    integration_id: Mapped[int] = mapped_column(Integer, ForeignKey("workspace_integrations.workspace_id"))
+    integration_id: Mapped[int] = mapped_column(Integer, ForeignKey("workspace_integrations.workspace_id", ondelete="CASCADE"), index=True)
 
     type: Mapped[str] = mapped_column(String, nullable=False)
 

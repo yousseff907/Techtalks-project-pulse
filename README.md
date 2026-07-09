@@ -21,8 +21,8 @@ Teams that use multiple project management tools (Jira, Notion, etc.) often stru
 - **Jira & Notion Integration:** Extract and normalize project data from both platforms via their APIs into a unified internal schema
 - **Unified Dashboard:** Visual display of normalized data through tables, charts, and graphs
 - **Productivity Analytics:** Calculated insights including task completion rates, team velocity, workload distribution, and performance metrics
-- **Authentication:** User and team-based login and access control
-- **Multi-team Support:** Users can belong to multiple teams, each with its own connected integrations and data
+- **Authentication:** Email-based, passwordless login with verification codes
+- **Multi-workspace Support:** Users can belong to multiple workspaces, each with its own connected integrations and data
 
 ---
 
@@ -37,13 +37,32 @@ Teams that use multiple project management tools (Jira, Notion, etc.) often stru
 
 | Layer | Technology |
 |-------|-----------|
+| Frontend | Next.js, React, TypeScript, Tailwind CSS |
 | Backend | FastAPI (Python) |
 | ORM | SQLAlchemy |
-| Frontend | HTML / CSS / JavaScript (Vanilla) |
+| Database | PostgreSQL |
+| Infrastructure | Docker, Nginx |
+| CI/CD | GitHub Actions |
 | Data Sources | Jira REST API, Notion REST API |
 
 ---
 
 ## Team
 
-Developed by a team of 6 as an internship project within the **TechTalks Lebanon** program.
+Developed by **Team Python D** as part of the **TechTalks Lebanon** internship program.
+
+- Youssef Itani — Team Lead
+- Paul Riachy
+- Abbas Abed Al Nabi
+- Nour Al Zahraa Hammoud
+
+Mentor: Khaled Frayji
+
+---
+
+## Sprint Reports & Documentation
+
+- Sprint 1 Report: [Notion Link](https://tasteful-persimmon-4c2.notion.site/Sprint-1-Report-39431913a1a180cbb7a8f8c414ba8201?source=copy_link)
+- Sprint 2 Report: [Notion Link](https://tasteful-persimmon-4c2.notion.site/Sprint-2-Report-39331913a1a18048bf17d8f8496b478f?source=copy_link)
+- SRS / Documentation: [link]
+- Jira Board: [link]
