@@ -6,7 +6,7 @@ from models.user import User
 from models.workspace import Workspace
 from models.workspace_member import WorkspaceMember
 from models.workspace_integration import WorkspaceIntegrations
-from utils.validators import is_dangerous
+from utils.validators import is_dangerous, is_blank
 from sqlalchemy.exc import IntegrityError
 import secrets
 from config import APP_BASE_URL
@@ -19,6 +19,9 @@ class CreateWorkspaceRequest(BaseModel):
 class JoinWorkspaceRequest(BaseModel):
     invite_code: str
 
+class UpdateWorkspaceNameRequest(BaseModel):
+	name: str
+
 @router.post("/workspaces", status_code=201)
 def	create_workspace(request: CreateWorkspaceRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
 	max_workspaces = 5
@@ -26,16 +29,19 @@ def	create_workspace(request: CreateWorkspaceRequest, db: Session = Depends(get_
 	if is_dangerous(request.name):
 		raise HTTPException(status_code=400, detail="Invalid name, contains dangerous characters")
 	
+	if is_blank(request.name):
+		raise HTTPException(status_code=400, detail="Name cannot be blank")
+
 	workspace_count = db.query(WorkspaceMember).filter(WorkspaceMember.user_id == current_user.id).count()
 	if workspace_count >= max_workspaces:
 		raise HTTPException(status_code=400, detail=f"You have reached the maximum number of workspaces ({max_workspaces})")
 
 	workspace_count = db.query(Workspace).count()
-
+	
 	for _ in range (0, workspace_count + 1):
 		try:
 			invitation_code = secrets.token_urlsafe(16)
-			new_workspace = Workspace(name=request.name, created_by=current_user.id, invite_code=invitation_code, invite_link=APP_BASE_URL+'/'+str(invitation_code))
+			new_workspace = Workspace(name=request.name.strip(), created_by=current_user.id, invite_code=invitation_code, invite_link=APP_BASE_URL+'/'+str(invitation_code))
 			db.add(new_workspace)
 			db.flush()
 			new_workspace.integration = WorkspaceIntegrations(workspace_id=new_workspace.id, workspace=new_workspace)
@@ -170,6 +176,31 @@ def leave_workspace(
     
     return {"message": "Successfully left the workspace"}
 
+@router.patch("/workspaces/{workspace_id}", status_code=200)
+def	update_workspace_name(request: UpdateWorkspaceNameRequest, workspace_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+	workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+	if not workspace:
+		raise HTTPException(status_code=404, detail="Workspace not found")
+
+	membership = db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace_id, WorkspaceMember.user_id == current_user.id).first()
+	if not membership:
+		raise HTTPException(status_code=404, detail="You are not a member of this workspace")
+
+	if membership.role != "owner" and membership.role != "admin":
+		raise HTTPException(status_code=403, detail="Only the workspace owner or an admin can configure workspace settings")
+
+	if is_dangerous(request.name):
+		raise HTTPException(status_code=400, detail="Invalid name, contains dangerous characters")
+      
+	if is_blank(request.name):
+		raise HTTPException(status_code=400, detail="Name cannot be blank")
+      
+	workspace.name = request.name.strip()
+	db.commit()
+	db.refresh(workspace)
+
+	return {"workspace_id": workspace.id, "name": workspace.name}
+
 #Delete workspace
 
 @router.delete("/workspaces/{workspace_id}", status_code=200)
@@ -201,3 +232,74 @@ def delete_workspace(
     db.commit()
 
     return {"message": "Workspace deleted successfully"}
+
+
+@router.patch("/workspaces/{workspace_id}/invite-code", status_code=200)
+def rotate_workspace_invite_code(
+    workspace_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    membership = (
+        db.query(WorkspaceMember)
+        .filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not membership or membership.role not in ["owner", "admin"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Only workspace owners or admins can rotate the invite code",
+        )
+
+    workspace_count = db.query(Workspace).count()
+
+    for _ in range(0, workspace_count + 1):
+        new_code = secrets.token_urlsafe(16)
+        workspace.invite_code = new_code
+        workspace.invite_link = APP_BASE_URL + "/" + new_code
+
+        try:
+            db.commit()
+            db.refresh(workspace)
+            return {
+                "workspace_id": workspace.id,
+                "invite_code": workspace.invite_code,
+                "invite_link": workspace.invite_link,
+            }
+        except IntegrityError:
+            db.rollback()
+
+    raise HTTPException(
+        status_code=500,
+        detail="Failed to generate a unique invite code",
+    )
+
+@router.get("/workspaces/{workspace_id}", status_code=200)
+def	get_workspace_details(workspace_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+	workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+	if not workspace:
+		raise HTTPException(status_code=404, detail="Workspace not found")
+
+	membership = (db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace_id, WorkspaceMember.user_id == current_user.id).first())
+	if not membership:
+		raise HTTPException(status_code=403, detail="You are not a member of this workspace")
+
+	created_by = db.query(User).filter(User.id == workspace.created_by).first()
+
+	member_count = db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace_id).count()
+
+	return {"id" : workspace_id,
+			"name" : workspace.name,
+			"invite_code" : workspace.invite_code,
+			"invite_link" : workspace.invite_link,
+			"created_by" : created_by.username if created_by else "Deleted User",
+			"created_at" : workspace.created_at,
+			"member_count" : member_count}

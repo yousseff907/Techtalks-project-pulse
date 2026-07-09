@@ -1,4 +1,6 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+from sqlalchemy.exc import IntegrityError
 
 from app import app
 from fastapi.testclient import TestClient
@@ -13,37 +15,44 @@ from models.workspace_data import WorkspaceData
 client = TestClient(app)
 
 def	test_workspace_creation(db_session, mock_user):
-	user = User(username="test_user", email="test_user@example.com", is_verified=True)
-	db_session.add(user)
-	db_session.flush()
+     
+    user = User(username="test_user", email="test_user@example.com", is_verified=True)
+    db_session.add(user)
+    db_session.flush()
 
-	mock_user.id = user.id
+    mock_user.id = user.id
 
-	response = client.post("/workspaces", json={"name": "ValidName"})
-	assert response.status_code == 201
-	assert response.json()["workspace_id"]
-	assert response.json()["name"]
-	assert response.json()["invite_code"]
-	assert response.json()["invite_link"]
-	
-	workspace = db_session.query(Workspace).filter(Workspace.id == response.json()["workspace_id"]).first()
-	assert workspace is not None
-	assert workspace.integration is not None
-	
-	workspace_member = db_session.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == response.json()["workspace_id"], WorkspaceMember.user_id == mock_user.id).first()
-	assert workspace_member is not None
-	assert workspace_member.role == "owner"
+    response = client.post("/workspaces", json={"name": "ValidName"})
+    assert response.status_code == 201
+    assert response.json()["workspace_id"]
+    assert response.json()["name"]
+    assert response.json()["invite_code"]
+    assert response.json()["invite_link"]
+    
+    workspace = db_session.query(Workspace).filter(Workspace.id == response.json()["workspace_id"]).first()
+    assert workspace is not None
+    assert workspace.integration is not None
+    
+    workspace_member = db_session.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == response.json()["workspace_id"], WorkspaceMember.user_id == mock_user.id).first()
+    assert workspace_member is not None
+    assert workspace_member.role == "owner"
 
-	for i in range(4):
-		client.post("/workspaces", json={"name": f"ValidName{i}"})
+    for i in range(4):
+        client.post("/workspaces", json={"name": f"ValidName{i}"})
 
-	response = client.post("/workspaces", json={"name": "ValidName_6"})
-	assert response.status_code == 400
-	assert response.json()["detail"] == "You have reached the maximum number of workspaces (5)"
+    response = client.post("/workspaces", json={"name": "ValidName_6"})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "You have reached the maximum number of workspaces (5)"
 
-	response = client.post("/workspaces", json={"name": "InvalidName_%00"})
-	assert response.status_code == 400
-	assert response.json()["detail"] == "Invalid name, contains dangerous characters"
+    response = client.post("/workspaces", json={"name": "InvalidName_%00"})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid name, contains dangerous characters"
+     
+    response = client.post("/workspaces", json={"name": "   "})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Name cannot be blank"
+
+
 
 def make_mock_user(user_id=1):
     user = MagicMock()
@@ -277,6 +286,152 @@ def test_leave_workspace_not_a_member(db_session, mock_user):
     response = client.delete(f"/workspaces/{workspace.id}/leave")
     assert response.status_code == 404
     assert response.json()["detail"] == "You are not a member of this workspace"
+    
+
+
+# Update Workspace Name tests
+
+def test_update_workspace_name_success_as_owner(db_session, mock_user):
+    owner = User(username="rename_owner", email="rename_owner@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(name="Old Name", created_by=owner.id, invite_code="rename1", invite_link="link_rename1")
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.patch(f"/workspaces/{workspace.id}", json={"name": "New Name"})
+
+    assert response.status_code == 200
+    assert response.json() == {"workspace_id": workspace.id, "name": "New Name"}
+
+    db_session.refresh(workspace)
+    assert workspace.name == "New Name"
+
+
+def test_update_workspace_name_success_as_admin(db_session, mock_user):
+    owner = User(username="rename_owner2", email="rename_owner2@example.com", is_verified=True)
+    admin_user = User(username="rename_admin", email="rename_admin@example.com", is_verified=True)
+    db_session.add_all([owner, admin_user])
+    db_session.flush()
+
+    workspace = Workspace(name="Old Name", created_by=owner.id, invite_code="rename2", invite_link="link_rename2")
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=admin_user.id, workspace_id=workspace.id, role="admin"))
+    db_session.commit()
+
+    mock_user.id = admin_user.id
+    response = client.patch(f"/workspaces/{workspace.id}", json={"name": "Admin Renamed"})
+
+    assert response.status_code == 200
+    assert response.json() == {"workspace_id": workspace.id, "name": "Admin Renamed"}
+
+
+def test_update_workspace_name_forbidden_for_regular_member(db_session, mock_user):
+    owner = User(username="rename_owner3", email="rename_owner3@example.com", is_verified=True)
+    member_user = User(username="rename_member", email="rename_member@example.com", is_verified=True)
+    db_session.add_all([owner, member_user])
+    db_session.flush()
+
+    workspace = Workspace(name="Old Name", created_by=owner.id, invite_code="rename3", invite_link="link_rename3")
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=member_user.id, workspace_id=workspace.id, role="member"))
+    db_session.commit()
+
+    mock_user.id = member_user.id
+    response = client.patch(f"/workspaces/{workspace.id}", json={"name": "Hacked Name"})
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Only the workspace owner or an admin can configure workspace settings"
+
+    db_session.refresh(workspace)
+    assert workspace.name == "Old Name"
+
+
+def test_update_workspace_name_not_found(db_session, mock_user):
+    mock_user.id = 1
+    response = client.patch("/workspaces/9999", json={"name": "Doesn't Matter"})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Workspace not found"
+
+
+def test_update_workspace_name_not_a_member(db_session, mock_user):
+    owner = User(username="rename_owner4", email="rename_owner4@example.com", is_verified=True)
+    non_member = User(username="rename_stranger", email="rename_stranger@example.com", is_verified=True)
+    db_session.add_all([owner, non_member])
+    db_session.flush()
+
+    workspace = Workspace(name="Old Name", created_by=owner.id, invite_code="rename4", invite_link="link_rename4")
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.commit()
+
+    mock_user.id = non_member.id
+    response = client.patch(f"/workspaces/{workspace.id}", json={"name": "Sneaky Rename"})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "You are not a member of this workspace"
+
+
+def test_update_workspace_name_dangerous_input(db_session, mock_user):
+    owner = User(username="rename_owner5", email="rename_owner5@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(name="Old Name", created_by=owner.id, invite_code="rename5", invite_link="link_rename5")
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.patch(f"/workspaces/{workspace.id}", json={"name": "<script>alert(1)</script>"})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid name, contains dangerous characters"
+
+    db_session.refresh(workspace)
+    assert workspace.name == "Old Name"
+
+    response = client.patch(f"/workspaces/{workspace.id}", json={"name": "   "})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Name cannot be blank"
+
+
+def test_update_workspace_name_strips_whitespace(db_session, mock_user):
+    owner = User(username="rename_owner6", email="rename_owner6@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(name="Old Name", created_by=owner.id, invite_code="rename6", invite_link="link_rename6")
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.patch(f"/workspaces/{workspace.id}", json={"name": "  Padded Name  "})
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "Padded Name"
+
+    db_session.refresh(workspace)
+    assert workspace.name == "Padded Name"
 
 
 def test_leave_workspace_owner_sole_member_deletes_workspace(db_session, mock_user):
@@ -296,7 +451,7 @@ def test_leave_workspace_owner_sole_member_deletes_workspace(db_session, mock_us
 
     db_session.add(WorkspaceData(integration_id=workspace.id, type="task", source="jira", title="Cascade Task"))
     db_session.commit()
-	
+    
     mock_user.id = owner.id
     response = client.delete(f"/workspaces/{workspace.id}/leave")
     
@@ -370,4 +525,248 @@ def test_delete_workspace_not_found(db_session, mock_user):
     assert response.json()["detail"] == "Workspace not found"
 
 
+#Generate invite code tests
 
+def test_rotate_invite_code_success_as_owner(db_session, mock_user):
+    owner = User(username="rot_owner", email="rot_owner@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(name="Rotate WS", created_by=owner.id, invite_code="oldcode123", invite_link="linkold")
+    db_session.add(workspace)
+    db_session.flush()
+
+    member = WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner")
+    db_session.add(member)
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.patch(f"/workspaces/{workspace.id}/invite-code")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["workspace_id"] == workspace.id
+    assert data["invite_code"] != "oldcode123"
+    assert data["invite_link"].endswith(data["invite_code"])
+
+    db_session.refresh(workspace)
+    assert workspace.invite_code == data["invite_code"]
+
+
+def test_rotate_invite_code_success_as_admin(db_session, mock_user):
+    owner = User(username="rot_owner2", email="rot_owner2@example.com", is_verified=True)
+    admin_user = User(username="rot_admin", email="rot_admin@example.com", is_verified=True)
+    db_session.add_all([owner, admin_user])
+    db_session.flush()
+
+    workspace = Workspace(name="Rotate WS Admin", created_by=owner.id, invite_code="oldcode456", invite_link="linkold2")
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=admin_user.id, workspace_id=workspace.id, role="admin"))
+    db_session.commit()
+
+    mock_user.id = admin_user.id
+    response = client.patch(f"/workspaces/{workspace.id}/invite-code")
+    assert response.status_code == 200
+
+
+def test_rotate_invite_code_forbidden_for_regular_member(db_session, mock_user):
+    owner = User(username="rot_owner3", email="rot_owner3@example.com", is_verified=True)
+    member_user = User(username="rot_member", email="rot_member@example.com", is_verified=True)
+    db_session.add_all([owner, member_user])
+    db_session.flush()
+
+    workspace = Workspace(name="Secure WS", created_by=owner.id, invite_code="secure123", invite_link="linksecure")
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=member_user.id, workspace_id=workspace.id, role="member"))
+    db_session.commit()
+
+    mock_user.id = member_user.id
+    response = client.patch(f"/workspaces/{workspace.id}/invite-code")
+
+    assert response.status_code == 403
+    assert "Only workspace owners or admins" in response.json()["detail"]
+
+
+def test_rotate_invite_code_not_found(db_session, mock_user):
+    mock_user.id = 1
+    response = client.patch("/workspaces/9999/invite-code")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Workspace not found"
+
+
+def test_rotate_invite_code_collision_handling():
+    mock_user = make_mock_user(user_id=1)
+    mock_workspace = make_mock_workspace(workspace_id=10)
+    mock_member = MagicMock()
+    mock_member.role = "owner"
+
+    mock_db = MagicMock()
+
+    def query_side_effect(model):
+        mock_query = MagicMock()
+        if model == WorkspaceMember:
+            mock_query.filter.return_value.first.return_value = mock_member
+        elif model == Workspace:
+            mock_query.filter.return_value.first.return_value = mock_workspace
+            mock_query.count.return_value = 3  # any real int works
+        return mock_query
+
+    mock_db.query.side_effect = query_side_effect
+    
+    mock_db.commit.side_effect = [IntegrityError(None, None, None), None]
+
+    override_dependencies(mock_user, mock_db)
+
+    with patch("secrets.token_urlsafe") as mock_token:
+        mock_token.side_effect = ["colliding_code", "clean_code"]
+
+        response = client.patch("/workspaces/10/invite-code")
+
+    assert response.status_code == 200
+    assert response.json()["invite_code"] == "clean_code"
+    assert mock_db.commit.call_count == 2
+    assert mock_db.rollback.call_count == 1
+
+    clear_dependencies()
+
+# Get Workspace Details tests
+
+def test_get_workspace_details_success_as_owner(db_session, mock_user):
+	owner = User(username="details_owner", email="details_owner@example.com", is_verified=True)
+	db_session.add(owner)
+	db_session.flush()
+
+	workspace = Workspace(name="Details Workspace", created_by=owner.id, invite_code="details1", invite_link="link_details1")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.commit()
+
+	mock_user.id = owner.id
+	response = client.get(f"/workspaces/{workspace.id}")
+
+	assert response.status_code == 200
+	body = response.json()
+	assert body["id"] == workspace.id
+	assert body["name"] == "Details Workspace"
+	assert body["invite_code"] == "details1"
+	assert body["invite_link"] == "link_details1"
+	assert body["created_by"] == "details_owner"
+	assert body["member_count"] == 1
+	assert body["created_at"] is not None
+
+
+def test_get_workspace_details_success_as_regular_member(db_session, mock_user):
+	owner = User(username="details_owner2", email="details_owner2@example.com", is_verified=True)
+	member_user = User(username="details_member", email="details_member@example.com", is_verified=True)
+	db_session.add_all([owner, member_user])
+	db_session.flush()
+
+	workspace = Workspace(name="Shared Details WS", created_by=owner.id, invite_code="details2", invite_link="link_details2")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.add(WorkspaceMember(user_id=member_user.id, workspace_id=workspace.id, role="member"))
+	db_session.commit()
+
+	mock_user.id = member_user.id
+	response = client.get(f"/workspaces/{workspace.id}")
+
+	assert response.status_code == 200
+	body = response.json()
+	assert body["created_by"] == "details_owner2"
+	assert body["member_count"] == 2
+
+
+def test_get_workspace_details_not_found(db_session, mock_user):
+	mock_user.id = 1
+	response = client.get("/workspaces/9999")
+
+	assert response.status_code == 404
+	assert response.json()["detail"] == "Workspace not found"
+
+
+def test_get_workspace_details_not_found_before_membership_check(db_session, mock_user):
+	# Confirms a non-existent workspace returns 404, not 403, even though
+	# no membership row could possibly exist for it either.
+	mock_user.id = 1
+	response = client.get("/workspaces/123456")
+
+	assert response.status_code == 404
+	assert response.json()["detail"] == "Workspace not found"
+
+
+def test_get_workspace_details_forbidden_for_non_member(db_session, mock_user):
+	owner = User(username="details_owner3", email="details_owner3@example.com", is_verified=True)
+	non_member = User(username="details_stranger", email="details_stranger@example.com", is_verified=True)
+	db_session.add_all([owner, non_member])
+	db_session.flush()
+
+	workspace = Workspace(name="Private WS", created_by=owner.id, invite_code="details3", invite_link="link_details3")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.commit()
+
+	mock_user.id = non_member.id
+	response = client.get(f"/workspaces/{workspace.id}")
+
+	assert response.status_code == 403
+	assert response.json()["detail"] == "You are not a member of this workspace"
+
+
+def test_get_workspace_details_member_count_accurate(db_session, mock_user):
+	owner = User(username="details_owner4", email="details_owner4@example.com", is_verified=True)
+	member_a = User(username="details_member_a", email="details_member_a@example.com", is_verified=True)
+	member_b = User(username="details_member_b", email="details_member_b@example.com", is_verified=True)
+	db_session.add_all([owner, member_a, member_b])
+	db_session.flush()
+
+	workspace = Workspace(name="Count WS", created_by=owner.id, invite_code="details4", invite_link="link_details4")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.add(WorkspaceMember(user_id=member_a.id, workspace_id=workspace.id, role="member"))
+	db_session.add(WorkspaceMember(user_id=member_b.id, workspace_id=workspace.id, role="admin"))
+	db_session.commit()
+
+	mock_user.id = owner.id
+	response = client.get(f"/workspaces/{workspace.id}")
+
+	assert response.status_code == 200
+	assert response.json()["member_count"] == 3
+
+
+def test_get_workspace_details_created_by_deleted_user(db_session, mock_user):
+	owner = User(username="details_owner5", email="details_owner5@example.com", is_verified=True)
+	member_user = User(username="details_member5", email="details_member5@example.com", is_verified=True)
+	db_session.add_all([owner, member_user])
+	db_session.flush()
+
+	workspace = Workspace(name="Orphaned WS", created_by=owner.id, invite_code="details5", invite_link="link_details5")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=member_user.id, workspace_id=workspace.id, role="owner"))
+	db_session.commit()
+
+	# Simulate created_by referencing a user that no longer exists,
+	# e.g. via ON DELETE SET NULL from a path outside normal account deletion.
+	workspace.created_by = None
+	db_session.commit()
+
+	mock_user.id = member_user.id
+	response = client.get(f"/workspaces/{workspace.id}")
+
+	assert response.status_code == 200
+	assert response.json()["created_by"] == "Deleted User"
