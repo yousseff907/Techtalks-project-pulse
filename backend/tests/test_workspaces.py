@@ -770,3 +770,278 @@ def test_get_workspace_details_created_by_deleted_user(db_session, mock_user):
 
 	assert response.status_code == 200
 	assert response.json()["created_by"] == "Deleted User"
+
+# Get Sync Status tests
+
+def test_get_sync_status_success(db_session, mock_user):
+	owner = User(username="sync_status_owner", email="sync_status_owner@example.com", is_verified=True)
+	db_session.add(owner)
+	db_session.flush()
+
+	workspace = Workspace(name="Sync Status WS", created_by=owner.id, invite_code="syncstatus1", invite_link="link_syncstatus1")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+	db_session.commit()
+
+	mock_user.id = owner.id
+	response = client.get(f"/workspaces/{workspace.id}/sync/status")
+
+	assert response.status_code == 200
+	assert "last_synced_at" in response.json()
+	assert response.json()["last_synced_at"] is None
+
+
+def test_get_sync_status_reflects_updated_timestamp(db_session, mock_user):
+	owner = User(username="sync_status_owner2", email="sync_status_owner2@example.com", is_verified=True)
+	db_session.add(owner)
+	db_session.flush()
+
+	workspace = Workspace(name="Sync Status WS 2", created_by=owner.id, invite_code="syncstatus2", invite_link="link_syncstatus2")
+	db_session.add(workspace)
+	db_session.flush()
+
+	integration = WorkspaceIntegrations(workspace_id=workspace.id)
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.add(integration)
+	db_session.commit()
+
+	from datetime import datetime, timezone
+	integration.last_synced_at = datetime.now(timezone.utc)
+	db_session.commit()
+
+	mock_user.id = owner.id
+	response = client.get(f"/workspaces/{workspace.id}/sync/status")
+
+	assert response.status_code == 200
+	assert response.json()["last_synced_at"] is not None
+
+
+def test_get_sync_status_workspace_not_found(db_session, mock_user):
+	mock_user.id = 1
+	response = client.get("/workspaces/9999/sync/status")
+
+	assert response.status_code == 404
+	assert response.json()["detail"] == "Workspace not found"
+
+
+def test_get_sync_status_forbidden_for_non_member(db_session, mock_user):
+	owner = User(username="sync_status_owner3", email="sync_status_owner3@example.com", is_verified=True)
+	non_member = User(username="sync_status_stranger", email="sync_status_stranger@example.com", is_verified=True)
+	db_session.add_all([owner, non_member])
+	db_session.flush()
+
+	workspace = Workspace(name="Private Sync WS", created_by=owner.id, invite_code="syncstatus3", invite_link="link_syncstatus3")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+	db_session.commit()
+
+	mock_user.id = non_member.id
+	response = client.get(f"/workspaces/{workspace.id}/sync/status")
+
+	assert response.status_code == 403
+	assert response.json()["detail"] == "You are not a member of this workspace"
+
+
+def test_get_sync_status_no_integration(db_session, mock_user):
+	owner = User(username="sync_status_owner4", email="sync_status_owner4@example.com", is_verified=True)
+	db_session.add(owner)
+	db_session.flush()
+
+	workspace = Workspace(name="No Integration WS", created_by=owner.id, invite_code="syncstatus4", invite_link="link_syncstatus4")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.commit()
+
+	mock_user.id = owner.id
+	response = client.get(f"/workspaces/{workspace.id}/sync/status")
+
+	assert response.status_code == 404
+
+
+# Manual Sync tests
+
+def test_manual_sync_success_as_owner(db_session, mock_user, mock_redis_client):
+	owner = User(username="manual_sync_owner", email="manual_sync_owner@example.com", is_verified=True)
+	db_session.add(owner)
+	db_session.flush()
+
+	workspace = Workspace(name="Manual Sync WS", created_by=owner.id, invite_code="manualsync1", invite_link="link_manualsync1")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+	db_session.commit()
+
+	mock_redis_client.exists.return_value = False
+
+	mock_task = MagicMock()
+	mock_task.id = "fake-task-id-123"
+
+	mock_user.id = owner.id
+	with patch("routes.workspaces.sync_workspace_data") as mock_sync_task:
+		mock_sync_task.delay.return_value = mock_task
+		response = client.post(f"/workspaces/{workspace.id}/sync")
+
+	assert response.status_code == 202
+	assert response.json() == {"task_id": "fake-task-id-123", "status": "queued"}
+
+	mock_sync_task.delay.assert_called_once_with(workspace.id)
+	mock_redis_client.setex.assert_called_once_with(f"sync_cooldown:{workspace.id}", 300, "1")
+
+
+def test_manual_sync_success_as_admin(db_session, mock_user, mock_redis_client):
+	owner = User(username="manual_sync_owner2", email="manual_sync_owner2@example.com", is_verified=True)
+	admin_user = User(username="manual_sync_admin", email="manual_sync_admin@example.com", is_verified=True)
+	db_session.add_all([owner, admin_user])
+	db_session.flush()
+
+	workspace = Workspace(name="Manual Sync WS Admin", created_by=owner.id, invite_code="manualsync2", invite_link="link_manualsync2")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.add(WorkspaceMember(user_id=admin_user.id, workspace_id=workspace.id, role="admin"))
+	db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+	db_session.commit()
+
+	mock_redis_client.exists.return_value = False
+
+	mock_task = MagicMock()
+	mock_task.id = "fake-task-id-456"
+
+	mock_user.id = admin_user.id
+	with patch("routes.workspaces.sync_workspace_data") as mock_sync_task:
+		mock_sync_task.delay.return_value = mock_task
+		response = client.post(f"/workspaces/{workspace.id}/sync")
+
+	assert response.status_code == 202
+
+
+def test_manual_sync_forbidden_for_regular_member(db_session, mock_user, mock_redis_client):
+	owner = User(username="manual_sync_owner3", email="manual_sync_owner3@example.com", is_verified=True)
+	member_user = User(username="manual_sync_member", email="manual_sync_member@example.com", is_verified=True)
+	db_session.add_all([owner, member_user])
+	db_session.flush()
+
+	workspace = Workspace(name="Manual Sync WS Member", created_by=owner.id, invite_code="manualsync3", invite_link="link_manualsync3")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.add(WorkspaceMember(user_id=member_user.id, workspace_id=workspace.id, role="member"))
+	db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+	db_session.commit()
+
+	mock_user.id = member_user.id
+	with patch("routes.workspaces.sync_workspace_data") as mock_sync_task:
+		response = client.post(f"/workspaces/{workspace.id}/sync")
+
+	assert response.status_code == 403
+	assert response.json()["detail"] == "Only workspace owners or admins can trigger a manual sync"
+	mock_sync_task.delay.assert_not_called()
+
+
+def test_manual_sync_workspace_not_found(db_session, mock_user):
+	mock_user.id = 1
+	response = client.post("/workspaces/9999/sync")
+
+	assert response.status_code == 404
+	assert response.json()["detail"] == "Workspace not found"
+
+
+def test_manual_sync_not_a_member(db_session, mock_user):
+	owner = User(username="manual_sync_owner4", email="manual_sync_owner4@example.com", is_verified=True)
+	non_member = User(username="manual_sync_stranger", email="manual_sync_stranger@example.com", is_verified=True)
+	db_session.add_all([owner, non_member])
+	db_session.flush()
+
+	workspace = Workspace(name="Manual Sync WS Stranger", created_by=owner.id, invite_code="manualsync4", invite_link="link_manualsync4")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+	db_session.commit()
+
+	mock_user.id = non_member.id
+	response = client.post(f"/workspaces/{workspace.id}/sync")
+
+	assert response.status_code == 403
+	assert response.json()["detail"] == "You are not a member of this workspace"
+
+
+def test_manual_sync_no_integration(db_session, mock_user):
+	owner = User(username="manual_sync_owner5", email="manual_sync_owner5@example.com", is_verified=True)
+	db_session.add(owner)
+	db_session.flush()
+
+	workspace = Workspace(name="Manual Sync No Integration", created_by=owner.id, invite_code="manualsync5", invite_link="link_manualsync5")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.commit()
+
+	mock_user.id = owner.id
+	response = client.post(f"/workspaces/{workspace.id}/sync")
+
+	assert response.status_code == 404
+
+
+def test_manual_sync_cooldown_active_returns_429(db_session, mock_user, mock_redis_client):
+	owner = User(username="manual_sync_owner6", email="manual_sync_owner6@example.com", is_verified=True)
+	db_session.add(owner)
+	db_session.flush()
+
+	workspace = Workspace(name="Manual Sync Cooldown WS", created_by=owner.id, invite_code="manualsync6", invite_link="link_manualsync6")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+	db_session.commit()
+
+	mock_redis_client.exists.return_value = True
+
+	mock_user.id = owner.id
+	with patch("routes.workspaces.sync_workspace_data") as mock_sync_task:
+		response = client.post(f"/workspaces/{workspace.id}/sync")
+
+	assert response.status_code == 429
+	assert response.json()["detail"] == "A sync was recently triggered, please wait before trying again"
+	mock_sync_task.delay.assert_not_called()
+	mock_redis_client.setex.assert_not_called()
+
+
+def test_manual_sync_checks_correct_cooldown_key(db_session, mock_user, mock_redis_client):
+	owner = User(username="manual_sync_owner7", email="manual_sync_owner7@example.com", is_verified=True)
+	db_session.add(owner)
+	db_session.flush()
+
+	workspace = Workspace(name="Manual Sync Key Check WS", created_by=owner.id, invite_code="manualsync7", invite_link="link_manualsync7")
+	db_session.add(workspace)
+	db_session.flush()
+
+	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+	db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+	db_session.commit()
+
+	mock_redis_client.exists.return_value = False
+	mock_task = MagicMock()
+	mock_task.id = "fake-task-id-789"
+
+	mock_user.id = owner.id
+	with patch("routes.workspaces.sync_workspace_data") as mock_sync_task:
+		mock_sync_task.delay.return_value = mock_task
+		client.post(f"/workspaces/{workspace.id}/sync")
+
+	mock_redis_client.exists.assert_called_once_with(f"sync_cooldown:{workspace.id}")

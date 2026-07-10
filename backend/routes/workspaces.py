@@ -10,6 +10,8 @@ from utils.validators import is_dangerous, is_blank
 from sqlalchemy.exc import IntegrityError
 import secrets
 from config import APP_BASE_URL
+from services.sync.tasks import sync_workspace_data
+from utils.redis_client import redis_client
 
 router = APIRouter()
 
@@ -303,3 +305,45 @@ def	get_workspace_details(workspace_id: int, db: Session = Depends(get_db), curr
 			"created_by" : created_by.username if created_by else "Deleted User",
 			"created_at" : workspace.created_at,
 			"member_count" : member_count}
+
+@router.get("/workspaces/{workspace_id}/sync/status", status_code=200)
+def get_sync_status(workspace_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+	workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+	if not workspace:
+		raise HTTPException(status_code=404, detail="Workspace not found")
+	
+	membership = db.query(WorkspaceMember).filter(WorkspaceMember.user_id == current_user.id, WorkspaceMember.workspace_id == workspace_id).first()
+	if not membership:
+		raise HTTPException(status_code=403, detail="You are not a member of this workspace")
+
+	integration = db.query(WorkspaceIntegrations).filter(WorkspaceIntegrations.workspace_id == workspace_id).first()
+	if not integration:
+		raise HTTPException(status_code=404, detail="Workspace not found")
+
+	return {"last_synced_at": integration.last_synced_at}
+
+@router.post("/workspaces/{workspace_id}/sync", status_code=202)
+def	workspace_manual_sync(workspace_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+	workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+	if not workspace:
+		raise HTTPException(status_code=404, detail="Workspace not found")
+
+	membership = db.query(WorkspaceMember).filter(WorkspaceMember.user_id == current_user.id, WorkspaceMember.workspace_id == workspace_id).first()
+	if not membership:
+		raise HTTPException(status_code=403, detail="You are not a member of this workspace")
+
+	if membership.role not in ["owner", "admin"]:
+		raise HTTPException(status_code=403, detail="Only workspace owners or admins can trigger a manual sync")
+
+	integration = db.query(WorkspaceIntegrations).filter(WorkspaceIntegrations.workspace_id == workspace_id).first()
+	if not integration:
+		raise HTTPException(status_code=404, detail="Workspace not found")
+
+	cooldown_key = f"sync_cooldown:{workspace_id}"
+	if redis_client.exists(cooldown_key):
+		raise HTTPException(status_code=429, detail="A sync was recently triggered, please wait before trying again")
+
+	task = sync_workspace_data.delay(workspace_id)
+	redis_client.setex(cooldown_key, 300, "1")
+
+	return {"task_id": task.id, "status": "queued"}
