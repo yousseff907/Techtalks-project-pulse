@@ -771,18 +771,6 @@ def test_get_workspace_details_created_by_deleted_user(db_session, mock_user):
 	assert response.status_code == 200
 	assert response.json()["created_by"] == "Deleted User"
 
-from unittest.mock import MagicMock, patch
-
-from fastapi.testclient import TestClient
-from app import app
-from models.user import User
-from models.workspace import Workspace
-from models.workspace_member import WorkspaceMember
-from models.workspace_integration import WorkspaceIntegrations
-
-client = TestClient(app)
-
-
 # Get Sync Status tests
 
 def test_get_sync_status_success(db_session, mock_user):
