@@ -42,7 +42,7 @@ def test_gather_and_store_jira_tasks():
                 },
                 "created": "2026-07-10T10:00:00.000Z",
                 "updated": "2026-07-11T10:00:00.000Z",
-                "due_date": "2026-07-20T00:00:00",
+                "due_date": "2026-07-20",
             },
         }
     ]
@@ -89,5 +89,5 @@ def test_gather_and_store_jira_tasks():
         "project": "PP",
         "created_at": "2026-07-10T10:00:00+00:00",
         "updated_at": "2026-07-11T10:00:00+00:00",
-        "due_date": "2026-07-20",
+        "due_date": "2026-07-20T00:00:00",
     }
