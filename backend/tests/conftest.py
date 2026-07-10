@@ -4,7 +4,7 @@ from cryptography.fernet import Fernet
 os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
 os.environ.setdefault("JWT_SECRET", Fernet.generate_key().decode())
 os.environ.setdefault("DATABASE_URL", "postgresql://testuser:testpass@localhost:5432/testdb")
-os.environ.setdefault("REDIS_URL", "REDIS://testuser:testpass@localhost:5432/testdb")
+os.environ.setdefault("REDIS_URL", "redis://testuser:testpass@localhost:5432/testdb")
 os.environ.setdefault("APP_BASE_URL", "https://example.com")
 
 import pytest
