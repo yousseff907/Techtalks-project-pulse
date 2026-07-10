@@ -6,9 +6,17 @@ from models.workspace_integration import WorkspaceIntegrations
 from services.sync.notion_sync import gather_and_store_notion_users,gather_and_store_notion_databases
 
 
+from utils.encryption import encrypt
+
+
+RAW_DATABASES = [
+    {"id": "db-1", "title": "Project Tracker"},
+    {"id": "db-2", "title": "Bug Reports"},
+]
+
 def make_mock_integration(notion_api_key="test-notion-token"):
     integration = MagicMock(spec=WorkspaceIntegrations)
-    integration.notion_api_key = notion_api_key
+    integration.notion_api_key = encrypt(notion_api_key) if notion_api_key else None
     return integration
 
 
@@ -28,11 +36,6 @@ def make_mock_db(integration=None):
 RAW_USERS = [
     {"id": "user-1", "name": "John Doe", "email": "john@example.com"},
     {"id": "user-2", "name": "Jane Smith", "email": "jane@example.com"},
-]
-
-RAW_DATABASES = [
-    {"id": "db-1", "title": "Project Tracker"},
-    {"id": "db-2", "title": "Bug Reports"},
 ]
 
 
@@ -190,7 +193,6 @@ def test_notion_service_instantiated_with_correct_token():
 
     with patch("services.sync.notion_sync.NotionService") as MockService:
         MockService.return_value.fetch_users.return_value = []
-
         gather_and_store_notion_users(integration_id=1, db=mock_db)
 
     MockService.assert_called_once_with(api_token="secret-token-abc")
@@ -368,7 +370,6 @@ def test_databases_notion_service_instantiated_with_correct_token():
 
     with patch("services.sync.notion_sync.NotionService") as MockService:
         MockService.return_value.fetch_databases.return_value = []
-
         gather_and_store_notion_databases(integration_id=1, db=mock_db)
 
     MockService.assert_called_once_with(api_token="secret-db-token")

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from models.workspace_data import WorkspaceData
 from models.workspace_integration import WorkspaceIntegrations
 from services.notion_service import NotionService
-
+from utils.encryption import decrypt
 
 def gather_and_store_notion_users(integration_id: int, db: Session) -> int:
     integration = (
@@ -17,11 +17,9 @@ def gather_and_store_notion_users(integration_id: int, db: Session) -> int:
     if integration is None or integration.notion_api_key is None:
         return 0
 
-     #Fetch all users via NotionService
-    service = NotionService(api_token=integration.notion_api_key)
+    service = NotionService(api_token=decrypt(integration.notion_api_key))
     raw_users = service.fetch_users()
 
-    #Normalize each user and insert a WorkspaceData row
     for user in raw_users:
         normalized = {
             "id": user.get("id", ""),
@@ -38,8 +36,8 @@ def gather_and_store_notion_users(integration_id: int, db: Session) -> int:
         ))
 
     db.flush()
-
     return len(raw_users)
+
 
 def gather_and_store_notion_databases(integration_id: int, db: Session) -> int:
     integration = (
@@ -51,7 +49,7 @@ def gather_and_store_notion_databases(integration_id: int, db: Session) -> int:
     if integration is None or integration.notion_api_key is None:
         return 0
 
-    service = NotionService(api_token=integration.notion_api_key)
+    service = NotionService(api_token=decrypt(integration.notion_api_key))
     raw_databases = service.fetch_databases()
 
     for db_record in raw_databases:
@@ -70,5 +68,4 @@ def gather_and_store_notion_databases(integration_id: int, db: Session) -> int:
         ))
 
     db.flush()
-
     return len(raw_databases)
