@@ -32,7 +32,6 @@ def gather_and_store_notion_users(integration_id: int, db: Session) -> int:
             type="user",
             source="notion",
             payload=normalized,
-            fetched_at=datetime.now(timezone.utc),
         ))
 
     db.flush()
@@ -64,7 +63,6 @@ def gather_and_store_notion_databases(integration_id: int, db: Session) -> int:
             source="notion",
             title=normalized["title"],
             payload=normalized,
-            fetched_at=datetime.now(timezone.utc),
         ))
 
     db.flush()
