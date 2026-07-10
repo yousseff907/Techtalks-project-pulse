@@ -11,7 +11,7 @@ export default function SignInPage() {
       description="Enter your email — we'll send you a verification code. No password required."
       footer={
         <>
-          Don&apos;t have an account?{" "}
+          Don't have an account?{" "}
           <Link href="/sign-up" className="font-medium text-primary underline-offset-4 hover:underline">
             Sign up
           </Link>
