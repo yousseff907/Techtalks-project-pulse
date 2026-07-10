@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-
+from datetime import date, datetime
 from models.workspace_data import WorkspaceData
 from models.workspace_integration import WorkspaceIntegrations
 from services.notion_service import NotionService
@@ -87,7 +87,6 @@ def gather_and_store_notion_databases(integration_id: int, db: Session) -> int:
             source="notion",
             title=normalized["title"],
             payload=normalized,
-            fetched_at=datetime.now(timezone.utc),
         ))
 
     db.flush()
@@ -164,30 +163,9 @@ def gather_and_store_notion_tasks(integration_id: int, db: Session) -> int:
                 title=title,
                 status=status,
                 payload=normalized,
-                fetched_at=datetime.now(timezone.utc),
             ))
 
             total_tasks += 1
 
     db.flush()
     return total_tasks
-
-    service = NotionService(api_token=decrypt(integration.notion_api_key))
-    raw_databases = service.fetch_databases()
-
-    for db_record in raw_databases:
-        normalized = {
-            "id": db_record.get("id", ""),
-            "title": db_record.get("title", ""),
-        }
-
-        db.add(WorkspaceData(
-            integration_id=integration_id,
-            type="project",
-            source="notion",
-            title=normalized["title"],
-            payload=normalized,
-        ))
-
-    db.flush()
-    return len(raw_databases)
