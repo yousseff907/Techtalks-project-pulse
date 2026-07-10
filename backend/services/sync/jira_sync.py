@@ -1,7 +1,9 @@
 from datetime import datetime
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from backend.utils.encryption import decrypt
 from services.jira_service import JiraService
 from models.workspace_data import WorkspaceData
 from models.workspace_integration import WorkspaceIntegrations
@@ -39,14 +41,13 @@ def gather_and_store_jira_users(integration_id: int, db: Session) -> int:
                 type="user",
                 source="jira",
                 payload=normalized_user,
-                fetched_at=datetime.utcnow(),
+                fetched_at=func.now(),
             )
         )
 
     db.flush()
 
     return len(users)
-
 
 
 
@@ -60,10 +61,13 @@ def gather_and_store_jira_projects(integration_id: int, db: Session) -> int:
     if not integration:
         raise ValueError("Jira integration not found")
 
+    if not integration.jira_api_key:
+        raise ValueError("Jira API key not found")
+
     jira_service = JiraService(
         integration.jira_base_url,
         integration.jira_admin_email,
-        integration.jira_api_key,
+        decrypt(integration.jira_api_key),
     )
 
     projects = jira_service.fetch_projects()
@@ -83,7 +87,7 @@ def gather_and_store_jira_projects(integration_id: int, db: Session) -> int:
                 source="jira",
                 title=normalized_project["name"],
                 payload=normalized_project,
-                fetched_at=datetime.utcnow(),
+                fetched_at=func.now(),
             )
         )
 
