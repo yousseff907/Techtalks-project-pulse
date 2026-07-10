@@ -7,7 +7,7 @@ os.environ.setdefault("DATABASE_URL", "postgresql://testuser:testpass@localhost:
 os.environ.setdefault("APP_BASE_URL", "https://example.com")
 
 import pytest
-from unittest.mock import Mock
+from unittest.mock import Mock, MagicMock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from utils.database import Base, get_db
@@ -45,3 +45,10 @@ def	mock_user():
 	app.dependency_overrides[get_current_user] = override_get_current_user
 	yield mock_user
 	app.dependency_overrides.pop(get_current_user, None)
+
+@pytest.fixture(scope="function")
+def mock_redis_client():
+	mock_redis = MagicMock()
+	with patch("routes.workspaces.redis_client", mock_redis):
+		yield mock_redis
+
