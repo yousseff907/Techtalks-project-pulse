@@ -1,5 +1,4 @@
-import datetime
-
+from datetime import datetime
 from sqlalchemy.orm import Session
 
 from utils.encryption import decrypt
