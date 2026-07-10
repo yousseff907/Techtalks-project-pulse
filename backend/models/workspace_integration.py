@@ -33,4 +33,6 @@ class WorkspaceIntegrations(Base):
 		nullable=True
 	)
 
+	last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
 	workspace: Mapped["Workspace"] = relationship(back_populates="integration", uselist=False)
