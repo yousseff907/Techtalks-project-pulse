@@ -10,3 +10,5 @@ pyjwt
 resend
 psycopg2-binary
 httpx2
+celery
+redis

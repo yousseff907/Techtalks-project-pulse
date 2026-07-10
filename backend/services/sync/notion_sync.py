@@ -1,12 +1,9 @@
-from datetime import datetime, date,timezone
-
 from sqlalchemy.orm import Session
 
 from models.workspace_data import WorkspaceData
 from models.workspace_integration import WorkspaceIntegrations
 from services.notion_service import NotionService
 from utils.encryption import decrypt
-
 
 _STATUS_MAP = {
     "not started": "TODO",
@@ -59,7 +56,6 @@ def gather_and_store_notion_users(integration_id: int, db: Session) -> int:
             type="user",
             source="notion",
             payload=normalized,
-            fetched_at=datetime.now(timezone.utc),
         ))
 
     db.flush()
@@ -175,3 +171,23 @@ def gather_and_store_notion_tasks(integration_id: int, db: Session) -> int:
 
     db.flush()
     return total_tasks
+
+    service = NotionService(api_token=decrypt(integration.notion_api_key))
+    raw_databases = service.fetch_databases()
+
+    for db_record in raw_databases:
+        normalized = {
+            "id": db_record.get("id", ""),
+            "title": db_record.get("title", ""),
+        }
+
+        db.add(WorkspaceData(
+            integration_id=integration_id,
+            type="project",
+            source="notion",
+            title=normalized["title"],
+            payload=normalized,
+        ))
+
+    db.flush()
+    return len(raw_databases)
