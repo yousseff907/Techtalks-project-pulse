@@ -1077,7 +1077,7 @@ def test_list_workspaces_returns_user_workspaces(db_session, mock_user):
     assert workspaces_by_id[ws2.id] == {"id": ws2.id, "name": "Second WS", "role": "admin"}
 
 
-def test_list_workspaces_returns_empty_list_when_no_memberships(db_session, mock_user):
+def test_list_workspaces_returns_204_when_no_memberships(db_session, mock_user):
     user = User(username="loner_user", email="loner@example.com", is_verified=True)
     db_session.add(user)
     db_session.commit()
@@ -1085,9 +1085,8 @@ def test_list_workspaces_returns_empty_list_when_no_memberships(db_session, mock
     mock_user.id = user.id
     response = client.get("/workspaces")
 
-    assert response.status_code == 200
-    assert response.json() == []
-
+    assert response.status_code == 204
+    assert response.content == b"" 
 
 def test_list_workspaces_excludes_other_users_workspaces(db_session, mock_user):
     user = User(username="me_user", email="me@example.com", is_verified=True)
