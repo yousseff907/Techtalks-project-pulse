@@ -1,17 +1,13 @@
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from models.workspace_data import WorkspaceData
 from models.workspace_integration import WorkspaceIntegrations
-from services.sync.jira_sync import (
-    gather_and_store_jira_users,
-    gather_and_store_jira_projects,
-)
+from services.sync.jira_sync import gather_and_store_jira_tasks
 
 
-def test_gather_and_store_jira_users():
+def test_gather_and_store_jira_tasks():
 
-    mock_db = MagicMock()
+    db = MagicMock()
 
     integration = WorkspaceIntegrations(
         workspace_id=1,
@@ -20,23 +16,47 @@ def test_gather_and_store_jira_users():
         jira_api_key="encrypted-token",
     )
 
-    mock_db.query.return_value.filter.return_value.first.return_value = integration
+    db.query.return_value.filter.return_value.first.return_value = integration
 
-    mock_users = [
+    mock_issues = [
         {
-            "accountId": "abc123",
-            "displayName": "John Doe",
-            "emailAddress": "john@example.com",
-            "active": True,
+            "id": "10001",
+            "key": "PP-1",
+            "fields": {
+                "summary": "Create dashboard",
+                "description": "Build project dashboard",
+                "status": {
+                    "name": "In Progress"
+                },
+                "priority": {
+                    "name": "High"
+                },
+                "assignee": {
+                    "displayName": "John"
+                },
+                "reporter": {
+                    "displayName": "Jane"
+                },
+                "project": {
+                    "key": "PP"
+                },
+                "created": "2026-07-10T10:00:00.000Z",
+                "updated": "2026-07-11T10:00:00.000Z",
+                "duedate": "2026-07-20",
+            },
         }
     ]
 
-    with patch("services.sync.jira_sync.JiraService") as mock_jira, \
-         patch("services.sync.jira_sync.decrypt", return_value="token123"):
+    with patch(
+        "services.sync.jira_sync.JiraService"
+    ) as mock_jira, patch(
+        "services.sync.jira_sync.decrypt",
+        return_value="token123"
+    ):
 
-        mock_jira.return_value.fetch_users.return_value = mock_users
+        mock_jira.return_value.fetch_issues.return_value = mock_issues
 
-        count = gather_and_store_jira_users(1, mock_db)
+        count = gather_and_store_jira_tasks(1, db)
 
     assert count == 1
 
@@ -46,107 +66,28 @@ def test_gather_and_store_jira_users():
         "token123",
     )
 
-    assert mock_db.add.call_count == 1
-    assert mock_db.flush.call_count == 1
+    assert db.add.call_count == 1
+    assert db.flush.call_count == 1
 
-    saved_user = mock_db.add.call_args_list[0].args[0]
+    saved_task = db.add.call_args_list[0].args[0]
 
-    assert isinstance(saved_user, WorkspaceData)
-    assert saved_user.integration_id == 1
-    assert saved_user.type == "user"
-    assert saved_user.source == "jira"
+    assert isinstance(saved_task, WorkspaceData)
+    assert saved_task.type == "task"
+    assert saved_task.source == "jira"
+    assert saved_task.title == "Create dashboard"
+    assert saved_task.status == "IN_PROGRESS"
 
-
-def test_gather_and_store_jira_users_no_api_key():
-
-    mock_db = MagicMock()
-
-    integration = WorkspaceIntegrations(
-        workspace_id=1,
-        jira_base_url="https://test.atlassian.net",
-        jira_admin_email="test@example.com",
-        jira_api_key=None,
-    )
-
-    mock_db.query.return_value.filter.return_value.first.return_value = integration
-
-    with pytest.raises(ValueError, match="Jira API key not found"):
-        gather_and_store_jira_users(1, mock_db)
-
-
-def test_gather_and_store_jira_projects():
-
-    mock_db = MagicMock()
-
-    integration = WorkspaceIntegrations(
-        workspace_id=1,
-        jira_base_url="https://test.atlassian.net",
-        jira_admin_email="test@example.com",
-        jira_api_key="encrypted-token",
-    )
-
-    mock_db.query.return_value.filter.return_value.first.return_value = integration
-
-    mock_projects = [
-        {
-            "id": "10001",
-            "key": "PP",
-            "name": "Project Pulse",
-            "projectTypeKey": "software",
-        },
-        {
-            "id": "10002",
-            "key": "WEB",
-            "name": "Website",
-            "projectTypeKey": "business",
-        },
-    ]
-
-    with patch("services.sync.jira_sync.JiraService") as mock_jira, \
-         patch("services.sync.jira_sync.decrypt", return_value="token123"):
-
-        mock_jira.return_value.fetch_projects.return_value = mock_projects
-
-        count = gather_and_store_jira_projects(1, mock_db)
-
-    assert count == 2
-
-    mock_jira.assert_called_once_with(
-        "https://test.atlassian.net",
-        "test@example.com",
-        "token123",
-    )
-
-    assert mock_db.add.call_count == 2
-    assert mock_db.flush.call_count == 1
-
-    saved_project = mock_db.add.call_args_list[0].args[0]
-
-    assert isinstance(saved_project, WorkspaceData)
-    assert saved_project.integration_id == 1
-    assert saved_project.type == "project"
-    assert saved_project.source == "jira"
-    assert saved_project.title == "Project Pulse"
-
-    assert saved_project.payload == {
+    assert saved_task.payload == {
         "id": "10001",
-        "key": "PP",
-        "name": "Project Pulse",
-        "type": "software",
+        "key": "PP-1",
+        "title": "Create dashboard",
+        "description": "Build project dashboard",
+        "status": "IN_PROGRESS",
+        "priority": "High",
+        "assignee": "John",
+        "reporter": "Jane",
+        "project": "PP",
+        "created_at": "2026-07-10T10:00:00+00:00",
+        "updated_at": "2026-07-11T10:00:00+00:00",
+        "due_date": "2026-07-20T00:00:00",
     }
-
-
-def test_gather_and_store_jira_projects_no_api_key():
-
-    mock_db = MagicMock()
-
-    integration = WorkspaceIntegrations(
-        workspace_id=1,
-        jira_base_url="https://test.atlassian.net",
-        jira_admin_email="test@example.com",
-        jira_api_key=None,
-    )
-
-    mock_db.query.return_value.filter.return_value.first.return_value = integration
-    with pytest.raises(ValueError, match="Jira API key not found"):
-        gather_and_store_jira_projects(1, mock_db)
