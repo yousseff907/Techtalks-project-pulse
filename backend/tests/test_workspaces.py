@@ -1045,3 +1045,94 @@ def test_manual_sync_checks_correct_cooldown_key(db_session, mock_user, mock_red
 		client.post(f"/workspaces/{workspace.id}/sync")
 
 	mock_redis_client.exists.assert_called_once_with(f"sync_cooldown:{workspace.id}")
+     
+# ---- List workspaces tests ----
+
+def test_list_workspaces_returns_user_workspaces(db_session, mock_user):
+    user = User(username="list_user", email="list_user@example.com", is_verified=True)
+    other_owner = User(username="other_owner", email="other@example.com", is_verified=True)
+    db_session.add_all([user, other_owner])
+    db_session.flush()
+
+    ws1 = Workspace(name="First WS", created_by=user.id, invite_code="listcode1", invite_link="listlink1")
+    ws2 = Workspace(name="Second WS", created_by=other_owner.id, invite_code="listcode2", invite_link="listlink2")
+    ws3 = Workspace(name="Not Mine WS", created_by=other_owner.id, invite_code="listcode3", invite_link="listlink3")
+    db_session.add_all([ws1, ws2, ws3])
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=user.id, workspace_id=ws1.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=user.id, workspace_id=ws2.id, role="admin"))
+    db_session.add(WorkspaceMember(user_id=other_owner.id, workspace_id=ws3.id, role="owner"))
+    db_session.commit()
+
+    mock_user.id = user.id
+    response = client.get("/workspaces")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 2
+
+    workspaces_by_id = {ws["id"]: ws for ws in body}
+    assert workspaces_by_id[ws1.id] == {"id": ws1.id, "name": "First WS", "role": "owner"}
+    assert workspaces_by_id[ws2.id] == {"id": ws2.id, "name": "Second WS", "role": "admin"}
+
+
+def test_list_workspaces_returns_empty_list_when_no_memberships(db_session, mock_user):
+    user = User(username="loner_user", email="loner@example.com", is_verified=True)
+    db_session.add(user)
+    db_session.commit()
+
+    mock_user.id = user.id
+    response = client.get("/workspaces")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_workspaces_excludes_other_users_workspaces(db_session, mock_user):
+    user = User(username="me_user", email="me@example.com", is_verified=True)
+    stranger = User(username="stranger", email="stranger@example.com", is_verified=True)
+    db_session.add_all([user, stranger])
+    db_session.flush()
+
+    ws = Workspace(name="Stranger WS", created_by=stranger.id, invite_code="listcode4", invite_link="listlink4")
+    db_session.add(ws)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=stranger.id, workspace_id=ws.id, role="owner"))
+    db_session.commit()
+
+    mock_user.id = user.id
+    response = client.get("/workspaces")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_workspaces_includes_correct_role_per_workspace(db_session, mock_user):
+    user = User(username="multi_role_user", email="multi@example.com", is_verified=True)
+    other = User(username="other_multi", email="other_multi@example.com", is_verified=True)
+    db_session.add_all([user, other])
+    db_session.flush()
+
+    ws_owner = Workspace(name="Owned", created_by=user.id, invite_code="mrole1", invite_link="mlink1")
+    ws_admin = Workspace(name="Admin Of", created_by=other.id, invite_code="mrole2", invite_link="mlink2")
+    ws_member = Workspace(name="Member Of", created_by=other.id, invite_code="mrole3", invite_link="mlink3")
+    db_session.add_all([ws_owner, ws_admin, ws_member])
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=user.id, workspace_id=ws_owner.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=user.id, workspace_id=ws_admin.id, role="admin"))
+    db_session.add(WorkspaceMember(user_id=user.id, workspace_id=ws_member.id, role="member"))
+    db_session.commit()
+
+    mock_user.id = user.id
+    response = client.get("/workspaces")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    roles_by_name = {ws["name"]: ws["role"] for ws in body}
+    assert roles_by_name["Owned"] == "owner"
+    assert roles_by_name["Admin Of"] == "admin"
+    assert roles_by_name["Member Of"] == "member"

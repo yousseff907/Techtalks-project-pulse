@@ -119,6 +119,22 @@ def join_workspace(
         "name": workspace.name,
     }
 
+@router.get("/workspaces", status_code=200)
+def list_workspaces(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(Workspace.id, Workspace.name, WorkspaceMember.role)
+        .join(WorkspaceMember, WorkspaceMember.workspace_id == Workspace.id)
+        .filter(WorkspaceMember.user_id == current_user.id)
+        .all()
+    )
+
+    return [
+        {"id": row.id, "name": row.name, "role": row.role}
+        for row in rows
+    ]
 
 @router.delete("/workspaces/{workspace_id}/leave", status_code=200)
 def leave_workspace(
