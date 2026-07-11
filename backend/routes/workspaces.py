@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Response, status
 from pydantic import BaseModel
 from utils.database import get_db, Session
 from utils.dependencies import get_current_user
@@ -119,6 +119,25 @@ def join_workspace(
         "name": workspace.name,
     }
 
+@router.get("/workspaces")
+def list_workspaces(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(Workspace.id, Workspace.name, WorkspaceMember.role)
+        .join(WorkspaceMember, WorkspaceMember.workspace_id == Workspace.id)
+        .filter(WorkspaceMember.user_id == current_user.id)
+        .all()
+    )
+
+    if not rows:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    return [
+        {"id": row.id, "name": row.name, "role": row.role}
+        for row in rows
+    ]
 
 @router.delete("/workspaces/{workspace_id}/leave", status_code=200)
 def leave_workspace(
