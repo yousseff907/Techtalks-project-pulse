@@ -1104,8 +1104,8 @@ def test_list_workspaces_excludes_other_users_workspaces(db_session, mock_user):
     mock_user.id = user.id
     response = client.get("/workspaces")
 
-    assert response.status_code == 200
-    assert response.json() == []
+    assert response.status_code == 204
+    assert response.content == b""
 
 
 def test_list_workspaces_includes_correct_role_per_workspace(db_session, mock_user):
