@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app import app
 from fastapi.testclient import TestClient
+from backend.tests.conftest import db_session
 from utils.database import get_db
 from utils.dependencies import get_current_user
 from models.user import User
@@ -1155,7 +1156,10 @@ def test_list_workspace_members_success(db_session, mock_user):
 
     db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
     db_session.add(WorkspaceMember(user_id=member.id, workspace_id=workspace.id, role="member"))
-    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    integration = WorkspaceIntegrations(workspace_id=workspace.id)
+
+    db_session.add(integration)
+    db_session.flush()
 
     db_session.add(
         WorkspaceData(
@@ -1230,7 +1234,13 @@ def test_list_workspace_members_username_fallback(db_session, mock_user):
         )
     )
 
-    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    integration = WorkspaceIntegrations(
+        workspace_id=workspace.id
+    )
+
+    db_session.add(integration)
+    db_session.flush()
+
 
     db_session.add(
         WorkspaceData(
@@ -1284,8 +1294,13 @@ def test_list_workspace_members_email_precedence_over_username(db_session, mock_
         )
     )
 
-    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    integration = WorkspaceIntegrations(
+        workspace_id=workspace.id
+    )
 
+    db_session.add(integration)
+    db_session.flush()
+    
     db_session.add_all([
         WorkspaceData(
             integration_id=workspace.id,
