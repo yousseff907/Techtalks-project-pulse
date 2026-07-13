@@ -13,6 +13,7 @@ import secrets
 from config import APP_BASE_URL
 from services.sync.tasks import sync_workspace_data
 from utils.redis_client import redis_client
+from sqlalchemy import and_, func, or_
 
 router = APIRouter()
 
@@ -413,15 +414,54 @@ def list_workspace_members(
     workspace_users = []
 
     if integration:
-        workspace_users = (
-            db.query(WorkspaceData)
+        latest_jira = (
+            db.query(func.max(WorkspaceData.fetched_at))
             .filter(
                 WorkspaceData.integration_id == integration.workspace_id,
                 WorkspaceData.type == "user",
+                WorkspaceData.source == "jira",
             )
-            .all()
+            .scalar()
         )
 
+        latest_notion = (
+            db.query(func.max(WorkspaceData.fetched_at))
+            .filter(
+                WorkspaceData.integration_id == integration.workspace_id,
+                WorkspaceData.type == "user",
+                WorkspaceData.source == "notion",
+            )
+            .scalar()
+        )
+
+        filters = []
+
+        if latest_jira:
+            filters.append(
+                and_(
+                    WorkspaceData.source == "jira",
+                    WorkspaceData.fetched_at == latest_jira,
+                )
+            )
+
+        if latest_notion:
+            filters.append(
+                and_(
+                    WorkspaceData.source == "notion",
+                    WorkspaceData.fetched_at == latest_notion,
+                )
+            )
+
+        if filters:
+            workspace_users = (
+                db.query(WorkspaceData)
+                .filter(
+                    WorkspaceData.integration_id == integration.workspace_id,
+                    WorkspaceData.type == "user",
+                    or_(*filters),
+                )
+                .all()
+            )
     def normalize(value):
         if not value:
             return None

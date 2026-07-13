@@ -11,6 +11,7 @@ from models.workspace import Workspace
 from models.workspace_member import WorkspaceMember
 from models.workspace_integration import WorkspaceIntegrations
 from models.workspace_data import WorkspaceData
+from datetime import datetime, timedelta, timezone
 
 client = TestClient(app)
 
@@ -1423,3 +1424,81 @@ def test_list_workspace_members_forbidden_for_non_member(db_session, mock_user):
 
     assert response.status_code == 403
     assert response.json()["detail"] == "You are not a member of this workspace"
+
+def test_list_workspace_members_uses_latest_sync_batch(db_session, mock_user):
+    owner = User(
+        username="owner",
+        email="owner@example.com",
+        is_verified=True,
+    )
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Latest Sync",
+        created_by=owner.id,
+        invite_code="latest",
+        invite_link="link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            role="owner",
+        )
+    )
+
+    db_session.add(
+        WorkspaceIntegrations(
+            workspace_id=workspace.id,
+        )
+    )
+    db_session.flush()
+
+    old_time = datetime.now(timezone.utc) - timedelta(hours=1)
+    new_time = datetime.now(timezone.utc)
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="user",
+            source="jira",
+            fetched_at=old_time,
+            payload={
+                "id": "jira-user-old",
+                "name": "Old Name",
+                "email": "owner@example.com",
+            },
+        )
+    )
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="user",
+            source="jira",
+            fetched_at=new_time,
+            payload={
+                "id": "jira-user-new",
+                "name": "New Name",
+                "email": "owner@example.com",
+            },
+        )
+    )
+
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.get(f"/workspaces/{workspace.id}/members")
+
+    assert response.status_code == 200
+
+    member = response.json()[0]
+
+    assert member["jira"]["id"] == "jira-user-new"
+    assert member["jira"]["name"] == "New Name"
+    assert member["jira"]["email"] == "owner@example.com"
