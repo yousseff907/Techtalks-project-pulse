@@ -27,10 +27,11 @@ def test_generate_workspace_summary_success(mock_client, db_session):
     db_session.flush()
 
     db_session.add(
-        WorkspaceIntegrations(
-            workspace_id=workspace.id,
-        )
+    WorkspaceIntegrations(
+        workspace_id=workspace.id,
     )
+)
+    db_session.flush()
 
     db_session.add_all([
         WorkspaceData(
@@ -57,7 +58,7 @@ def test_generate_workspace_summary_success(mock_client, db_session):
     ])
 
     db_session.commit()
-
+    
     response = Mock()
     response.text = "Generated summary"
 
