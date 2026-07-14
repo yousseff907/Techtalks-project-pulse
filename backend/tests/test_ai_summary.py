@@ -1,4 +1,7 @@
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
+
+import pytest
 
 from models.user import User
 from models.workspace import Workspace
@@ -27,10 +30,10 @@ def test_generate_workspace_summary_success(mock_client, db_session):
     db_session.flush()
 
     db_session.add(
-    WorkspaceIntegrations(
-        workspace_id=workspace.id,
+        WorkspaceIntegrations(
+            workspace_id=workspace.id,
+        )
     )
-)
     db_session.flush()
 
     db_session.add_all([
@@ -58,7 +61,7 @@ def test_generate_workspace_summary_success(mock_client, db_session):
     ])
 
     db_session.commit()
-    
+
     response = Mock()
     response.text = "Generated summary"
 
@@ -81,6 +84,103 @@ def test_generate_workspace_summary_success(mock_client, db_session):
     assert "DONE: 1" in prompt
     assert "Fix login" in prompt
 
+
+@patch("services.ai_summary.genai.Client")
+def test_generate_workspace_summary_uses_latest_sync_batch(
+    mock_client,
+    db_session,
+):
+    owner = User(
+        username="owner",
+        email="owner@example.com",
+        is_verified=True,
+    )
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Workspace",
+        created_by=owner.id,
+        invite_code="code",
+        invite_link="link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceIntegrations(
+            workspace_id=workspace.id,
+        )
+    )
+    db_session.flush()
+
+    old_time = datetime.now(timezone.utc) - timedelta(hours=1)
+    new_time = datetime.now(timezone.utc)
+
+    db_session.add_all([
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            fetched_at=old_time,
+            payload={
+                "title": "Old Task 1",
+                "status": "TODO",
+                "priority": "High",
+            },
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            fetched_at=old_time,
+            payload={
+                "title": "Old Task 2",
+                "status": "IN_PROGRESS",
+                "priority": "Low",
+            },
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            fetched_at=new_time,
+            payload={
+                "title": "New Task",
+                "status": "DONE",
+                "priority": "Low",
+            },
+        ),
+    ])
+
+    db_session.commit()
+
+    response = Mock()
+    response.text = "Generated summary"
+
+    client = Mock()
+    client.models.generate_content.return_value = response
+    mock_client.return_value = client
+
+    generate_workspace_summary(
+        workspace.id,
+        db_session,
+    )
+
+    prompt = client.models.generate_content.call_args.kwargs["contents"]
+
+    assert "Total tasks: 1" in prompt
+    assert "DONE: 1" in prompt
+
+    assert "New Task" in prompt
+
+    assert "Old Task 1" not in prompt
+    assert "Old Task 2" not in prompt
+
+    assert "TODO: 1" not in prompt
+    assert "IN_PROGRESS: 1" not in prompt
+
+    
 @patch("services.ai_summary.genai.Client")
 def test_generate_workspace_summary_api_failure(
     mock_client,
@@ -108,7 +208,6 @@ def test_generate_workspace_summary_api_failure(
             workspace_id=workspace.id,
         )
     )
-
     db_session.commit()
 
     client = Mock()
@@ -118,10 +217,19 @@ def test_generate_workspace_summary_api_failure(
 
     mock_client.return_value = client
 
-    import pytest
-
     with pytest.raises(RuntimeError):
         generate_workspace_summary(
             workspace.id,
             db_session,
+        )
+
+
+def test_generate_workspace_summary_no_integration(db_session):
+    with pytest.raises(
+        ValueError,
+        match="Workspace integration not found",
+    ):
+        generate_workspace_summary(
+            workspace_id=999,
+            db=db_session,
         )

@@ -1,12 +1,16 @@
 from collections import Counter
 from datetime import datetime, timezone
+import logging
 
 from google import genai
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from config import GEMINI_API_KEY
 from models.workspace_data import WorkspaceData
 from models.workspace_integration import WorkspaceIntegrations
+
+logger = logging.getLogger(__name__)
 
 
 def generate_workspace_summary(workspace_id: int, db: Session) -> str:
@@ -21,18 +25,60 @@ def generate_workspace_summary(workspace_id: int, db: Session) -> str:
     if integration is None:
         raise ValueError("Workspace integration not found")
 
-    task_rows = (
-        db.query(WorkspaceData)
+    latest_jira = (
+        db.query(func.max(WorkspaceData.fetched_at))
         .filter(
             WorkspaceData.integration_id == integration.workspace_id,
             WorkspaceData.type == "task",
+            WorkspaceData.source == "jira",
         )
-        .all()
+        .scalar()
     )
+
+    latest_notion = (
+        db.query(func.max(WorkspaceData.fetched_at))
+        .filter(
+            WorkspaceData.integration_id == integration.workspace_id,
+            WorkspaceData.type == "task",
+            WorkspaceData.source == "notion",
+        )
+        .scalar()
+    )
+
+    filters = []
+
+    if latest_jira:
+        filters.append(
+            and_(
+                WorkspaceData.source == "jira",
+                WorkspaceData.fetched_at == latest_jira,
+            )
+        )
+
+    if latest_notion:
+        filters.append(
+            and_(
+                WorkspaceData.source == "notion",
+                WorkspaceData.fetched_at == latest_notion,
+            )
+        )
+
+    task_rows = []
+
+    if filters:
+        task_rows = (
+            db.query(WorkspaceData)
+            .filter(
+                WorkspaceData.integration_id == integration.workspace_id,
+                WorkspaceData.type == "task",
+                or_(*filters),
+            )
+            .all()
+        )
+
     total_tasks = len(task_rows)
 
     status_counts = Counter()
-
     overdue_tasks = []
     high_priority_tasks = []
 
@@ -47,7 +93,9 @@ def generate_workspace_summary(workspace_id: int, db: Session) -> str:
         priority = (payload.get("priority") or "").strip().lower()
 
         if priority == "high":
-            high_priority_tasks.append(payload.get("title", "Untitled"))
+            high_priority_tasks.append(
+                payload.get("title", "Untitled")
+            )
 
         due_date = payload.get("due_date")
 
@@ -85,17 +133,17 @@ Write a concise project health summary in 2-4 paragraphs.
 Mention overall progress, risks, bottlenecks, and any notable priorities.
 """
 
-    try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
+    client = genai.Client(api_key=GEMINI_API_KEY)
 
+    try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash", #Set a default for now, until api later provided
+            model="gemini-2.5-flash",  # Default model for now
             contents=prompt,
         )
-
-        return response.text
-
     except Exception as exc:
+        logger.exception("Gemini API request failed.")
         raise RuntimeError(
             "Failed to generate workspace summary."
         ) from exc
+
+    return response.text
