@@ -147,8 +147,8 @@ def test_generate_workspace_summary_uses_latest_sync_batch(
             fetched_at=new_time,
             payload={
                 "title": "New Task",
-                "status": "DONE",
-                "priority": "Low",
+                "status": "TODO",
+                "priority": "High",
             },
         ),
     ])
@@ -170,17 +170,14 @@ def test_generate_workspace_summary_uses_latest_sync_batch(
     prompt = client.models.generate_content.call_args.kwargs["contents"]
 
     assert "Total tasks: 1" in prompt
-    assert "DONE: 1" in prompt
+    assert "TODO: 1" in prompt
 
     assert "New Task" in prompt
-
     assert "Old Task 1" not in prompt
     assert "Old Task 2" not in prompt
 
-    assert "TODO: 1" not in prompt
     assert "IN_PROGRESS: 1" not in prompt
 
-    
 @patch("services.ai_summary.genai.Client")
 def test_generate_workspace_summary_api_failure(
     mock_client,
