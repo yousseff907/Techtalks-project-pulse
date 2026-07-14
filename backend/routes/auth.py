@@ -15,9 +15,6 @@ from sqlalchemy import func
 
 from utils.background_tasks import cleanup_expired_codes
 from utils.jwt_helper import create_jwt_token
-from utils.dependencies import get_current_user
-
-
 from models.user import User
 from models.email_rate_limit import EmailRateLimit
 from models.verification import Verification
