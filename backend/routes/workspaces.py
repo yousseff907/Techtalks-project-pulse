@@ -14,6 +14,7 @@ from config import APP_BASE_URL
 from services.sync.tasks import sync_workspace_data
 from utils.redis_client import redis_client
 from sqlalchemy import and_, func, or_
+from typing import Literal
 
 router = APIRouter()
 
@@ -25,6 +26,9 @@ class JoinWorkspaceRequest(BaseModel):
 
 class UpdateWorkspaceNameRequest(BaseModel):
 	name: str
+
+class UpdateMemberRoleRequest(BaseModel):
+	role: Literal["admin", "member"]
 
 @router.post("/workspaces", status_code=201)
 def	create_workspace(request: CreateWorkspaceRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -529,3 +533,30 @@ def list_workspace_members(
         )
 
     return results
+
+
+@router.patch("/workspaces/{workspace_id}/members/{user_id}")
+def	promote_demote_user(request: UpdateMemberRoleRequest, workspace_id: int, user_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+	workspace = (db.query(Workspace).filter(Workspace.id == workspace_id).first())
+	if not workspace:
+		raise HTTPException(status_code=404, detail="Workspace not found")
+
+	membership = (db.query(WorkspaceMember).filter(	WorkspaceMember.workspace_id == workspace_id, WorkspaceMember.user_id == current_user.id).first())
+	if not membership:
+		raise HTTPException(status_code=403, detail="You are not a member of this workspace")
+
+	if membership.role not in ["owner", "admin"]:
+		raise HTTPException(status_code=403, detail="Only workspace owners or admins can change membership status")
+
+	membership = (db.query(WorkspaceMember).filter(	WorkspaceMember.workspace_id == workspace_id, WorkspaceMember.user_id == user_id).first())
+	if not membership:
+		raise HTTPException(status_code=404, detail="Target user is not a member of this workspace")
+
+	if membership.role == "owner":
+		raise HTTPException(status_code=400, detail="ownership must be transferred first via Leave Workspace or a separate transfer mechanism, this endpoint does not handle ownership transfer")
+
+	membership.role = request.role
+	db.commit()
+	db.refresh(membership)
+	
+	return {"user_id": user_id, "workspace_id" : workspace_id, "role" : membership.role}
