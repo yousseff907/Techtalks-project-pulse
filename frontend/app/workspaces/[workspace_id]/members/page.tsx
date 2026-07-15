@@ -7,29 +7,24 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-import { mockMembers, WorkspaceMember } from "./mock";
+import {WorkspaceMember } from "./member_types";
 
 async function fetchWorkspaceMembers(
 	workspaceId: string,
 ): Promise<WorkspaceMember[]> {
-	// Temporary until backend integration
-	return Promise.resolve(mockMembers);
-
-	/*
 	const response = await fetch(
-	`${process.env.NEXT_PUBLIC_API_URL}/workspaces/${workspaceId}/members`
-);
+		`${process.env.NEXT_PUBLIC_API_URL}/workspaces/${workspaceId}/members`
+	);
 
-    if (!response.ok) {
-        const error = await response.json();
+	if (!response.ok) {
+		const error = await response.json();
 
-        throw new Error(
-            error.detail ?? "Failed to fetch workspace members"
-        );
-    }
+		throw new Error(
+			error.detail ?? "Failed to fetch workspace members"
+		);
+	}
 
-    return response.json();
-	*/
+	return response.json();
 }
 
 export default function MembersPage() {
