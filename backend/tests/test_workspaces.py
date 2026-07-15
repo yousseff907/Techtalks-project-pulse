@@ -1766,3 +1766,271 @@ def test_update_member_role_cannot_demote_sole_owner(db_session, mock_user):
         .first()
     )
     assert unchanged_membership.role == "owner"
+
+#Remove Member from Workspace tests
+
+def test_remove_member_success_as_owner(db_session, mock_user):
+    owner = User(username="owner", email="owner@test.com", is_verified=True)
+    member = User(username="member", email="member@test.com", is_verified=True)
+
+    db_session.add_all([owner, member])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Workspace",
+        created_by=owner.id,
+        invite_code="abc",
+        invite_link="abc",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add_all([
+        WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"),
+        WorkspaceMember(user_id=member.id, workspace_id=workspace.id, role="member"),
+    ])
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.delete(
+        f"/workspaces/{workspace.id}/members/{member.id}"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Member removed successfully"
+
+    removed_member = (
+    db_session.query(WorkspaceMember)
+    .filter(
+        WorkspaceMember.workspace_id == workspace.id,
+        WorkspaceMember.user_id == member.id,
+    )
+    .first()
+    )
+
+    assert removed_member is None
+
+
+def test_remove_member_success_as_admin(db_session, mock_user):
+    owner = User(username="owner", email="owner@test.com", is_verified=True)
+    admin = User(username="admin", email="admin@test.com", is_verified=True)
+    member = User(username="member", email="member@test.com", is_verified=True)
+
+    db_session.add_all([owner, admin, member])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Workspace",
+        created_by=owner.id,
+        invite_code="abc",
+        invite_link="abc",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add_all([
+        WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"),
+        WorkspaceMember(user_id=admin.id, workspace_id=workspace.id, role="admin"),
+        WorkspaceMember(user_id=member.id, workspace_id=workspace.id, role="member"),
+    ])
+    db_session.commit()
+
+    mock_user.id = admin.id
+
+    response = client.delete(
+        f"/workspaces/{workspace.id}/members/{member.id}"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Member removed successfully"
+
+    removed_member = (
+    db_session.query(WorkspaceMember)
+    .filter(
+        WorkspaceMember.workspace_id == workspace.id,
+        WorkspaceMember.user_id == member.id,
+    )
+    .first()
+    )
+
+    assert removed_member is None
+
+
+def test_remove_member_forbidden_for_member(db_session, mock_user):
+    owner = User(username="owner", email="owner@test.com", is_verified=True)
+    member = User(username="member", email="member@test.com", is_verified=True)
+    other = User(username="other", email="other@test.com", is_verified=True)
+
+    db_session.add_all([owner, member, other])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Workspace",
+        created_by=owner.id,
+        invite_code="abc",
+        invite_link="abc",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add_all([
+        WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"),
+        WorkspaceMember(user_id=member.id, workspace_id=workspace.id, role="member"),
+        WorkspaceMember(user_id=other.id, workspace_id=workspace.id, role="member"),
+    ])
+    db_session.commit()
+
+    mock_user.id = member.id
+
+    response = client.delete(
+        f"/workspaces/{workspace.id}/members/{other.id}"
+    )
+
+    assert response.status_code == 403
+    
+    membership = (
+    db_session.query(WorkspaceMember)
+    .filter(
+        WorkspaceMember.workspace_id == workspace.id,
+        WorkspaceMember.user_id == other.id,
+    )
+    .first()
+    )
+
+    assert membership is not None
+
+
+def test_remove_member_workspace_not_found(db_session, mock_user):
+    mock_user.id = 1
+
+    response = client.delete("/workspaces/999/members/1")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Workspace not found"
+
+
+def test_remove_member_target_not_found(db_session, mock_user):
+    owner = User(username="owner", email="owner@test.com", is_verified=True)
+    outsider = User(username="outsider", email="outsider@test.com", is_verified=True)
+
+    db_session.add_all([owner, outsider])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Workspace",
+        created_by=owner.id,
+        invite_code="abc",
+        invite_link="abc",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            role="owner",
+        )
+    )
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.delete(
+        f"/workspaces/{workspace.id}/members/{outsider.id}"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Target user is not a member of this workspace"
+
+
+def test_remove_member_cannot_remove_self(db_session, mock_user):
+    owner = User(username="owner", email="owner@test.com", is_verified=True)
+
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Workspace",
+        created_by=owner.id,
+        invite_code="abc",
+        invite_link="abc",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            role="owner",
+        )
+    )
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.delete(
+        f"/workspaces/{workspace.id}/members/{owner.id}"
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Use the Leave Workspace endpoint to remove yourself"
+
+    membership = (
+    db_session.query(WorkspaceMember)
+    .filter(
+        WorkspaceMember.workspace_id == workspace.id,
+        WorkspaceMember.user_id == owner.id,
+    )
+    .first()
+    )
+
+    assert membership is not None
+    assert membership.role == "owner"
+
+
+def test_remove_member_cannot_remove_owner(db_session, mock_user):
+    owner = User(username="owner", email="owner@test.com", is_verified=True)
+    admin = User(username="admin", email="admin@test.com", is_verified=True)
+
+    db_session.add_all([owner, admin])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Workspace",
+        created_by=owner.id,
+        invite_code="abc",
+        invite_link="abc",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add_all([
+        WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"),
+        WorkspaceMember(user_id=admin.id, workspace_id=workspace.id, role="admin"),
+    ])
+    db_session.commit()
+
+    mock_user.id = admin.id
+
+    response = client.delete(
+        f"/workspaces/{workspace.id}/members/{owner.id}"
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Workspace owner cannot be removed"
+
+    owner_membership = (
+        db_session.query(WorkspaceMember)
+        .filter(
+            WorkspaceMember.workspace_id == workspace.id,
+            WorkspaceMember.user_id == owner.id,
+        )
+        .first()
+    )
+
+    assert owner_membership is not None
+    assert owner_membership.role == "owner"
+
