@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Response, status
 from pydantic import BaseModel
 from utils.database import get_db, Session
 from utils.dependencies import get_current_user
@@ -6,12 +6,14 @@ from models.user import User
 from models.workspace import Workspace
 from models.workspace_member import WorkspaceMember
 from models.workspace_integration import WorkspaceIntegrations
+from models.workspace_data import WorkspaceData
 from utils.validators import is_dangerous, is_blank
 from sqlalchemy.exc import IntegrityError
 import secrets
 from config import APP_BASE_URL
 from services.sync.tasks import sync_workspace_data
 from utils.redis_client import redis_client
+from sqlalchemy import and_, func, or_
 
 router = APIRouter()
 
@@ -119,6 +121,25 @@ def join_workspace(
         "name": workspace.name,
     }
 
+@router.get("/workspaces")
+def list_workspaces(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(Workspace.id, Workspace.name, WorkspaceMember.role)
+        .join(WorkspaceMember, WorkspaceMember.workspace_id == Workspace.id)
+        .filter(WorkspaceMember.user_id == current_user.id)
+        .all()
+    )
+
+    if not rows:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    return [
+        {"id": row.id, "name": row.name, "role": row.role}
+        for row in rows
+    ]
 
 @router.delete("/workspaces/{workspace_id}/leave", status_code=200)
 def leave_workspace(
@@ -347,3 +368,164 @@ def	workspace_manual_sync(workspace_id: int, current_user: User = Depends(get_cu
 	redis_client.setex(cooldown_key, 300, "1")
 
 	return {"task_id": task.id, "status": "queued"}
+
+
+@router.get("/workspaces/{workspace_id}/members", status_code=200)
+def list_workspace_members(
+    workspace_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    workspace = (
+        db.query(Workspace)
+        .filter(Workspace.id == workspace_id)
+        .first()
+    )
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    membership = (
+        db.query(WorkspaceMember)
+        .filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not membership:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this workspace",
+        )
+
+    integration = (
+        db.query(WorkspaceIntegrations)
+        .filter(WorkspaceIntegrations.workspace_id == workspace_id)
+        .first()
+    )
+
+    members = (
+        db.query(WorkspaceMember, User)
+        .join(User, WorkspaceMember.user_id == User.id)
+        .filter(WorkspaceMember.workspace_id == workspace_id)
+        .all()
+    )
+
+    workspace_users = []
+
+    if integration:
+        latest_jira = (
+            db.query(func.max(WorkspaceData.fetched_at))
+            .filter(
+                WorkspaceData.integration_id == integration.workspace_id,
+                WorkspaceData.type == "user",
+                WorkspaceData.source == "jira",
+            )
+            .scalar()
+        )
+
+        latest_notion = (
+            db.query(func.max(WorkspaceData.fetched_at))
+            .filter(
+                WorkspaceData.integration_id == integration.workspace_id,
+                WorkspaceData.type == "user",
+                WorkspaceData.source == "notion",
+            )
+            .scalar()
+        )
+
+        filters = []
+
+        if latest_jira:
+            filters.append(
+                and_(
+                    WorkspaceData.source == "jira",
+                    WorkspaceData.fetched_at == latest_jira,
+                )
+            )
+
+        if latest_notion:
+            filters.append(
+                and_(
+                    WorkspaceData.source == "notion",
+                    WorkspaceData.fetched_at == latest_notion,
+                )
+            )
+
+        if filters:
+            workspace_users = (
+                db.query(WorkspaceData)
+                .filter(
+                    WorkspaceData.integration_id == integration.workspace_id,
+                    WorkspaceData.type == "user",
+                    or_(*filters),
+                )
+                .all()
+            )
+    def normalize(value):
+        if not value:
+            return None
+        return str(value).strip().lower()
+
+    jira_email = {}
+    jira_name = {}
+
+    notion_email = {}
+    notion_name = {}
+
+    for row in workspace_users:
+        payload = row.payload or {}
+
+        email = normalize(payload.get("email"))
+        name = normalize(payload.get("name"))
+
+        if row.source == "jira":
+            if email:
+                jira_email[email] = payload
+            if name:
+                jira_name[name] = payload
+
+        elif row.source == "notion":
+            if email:
+                notion_email[email] = payload
+            if name:
+                notion_name[name] = payload
+
+    def provider_result(match):
+        if not match:
+            return None
+
+        return {
+            "id": match.get("id"),
+            "name": match.get("name"),
+            "email": match.get("email"),
+        }
+
+    results = []
+
+    for member, user in members:
+        email = normalize(user.email)
+        username = normalize(user.username)
+
+        jira_match = (
+            jira_email.get(email)
+            or jira_name.get(username)
+        )
+
+        notion_match = (
+            notion_email.get(email)
+            or notion_name.get(username)
+        )
+
+        results.append(
+            {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "role": member.role,
+                "jira": provider_result(jira_match),
+                "notion": provider_result(notion_match),
+            }
+        )
+
+    return results

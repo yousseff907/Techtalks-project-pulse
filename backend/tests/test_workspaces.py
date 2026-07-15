@@ -11,6 +11,7 @@ from models.workspace import Workspace
 from models.workspace_member import WorkspaceMember
 from models.workspace_integration import WorkspaceIntegrations
 from models.workspace_data import WorkspaceData
+from datetime import datetime, timedelta, timezone
 
 client = TestClient(app)
 
@@ -1045,3 +1046,459 @@ def test_manual_sync_checks_correct_cooldown_key(db_session, mock_user, mock_red
 		client.post(f"/workspaces/{workspace.id}/sync")
 
 	mock_redis_client.exists.assert_called_once_with(f"sync_cooldown:{workspace.id}")
+     
+# ---- List workspaces tests ----
+
+def test_list_workspaces_returns_user_workspaces(db_session, mock_user):
+    user = User(username="list_user", email="list_user@example.com", is_verified=True)
+    other_owner = User(username="other_owner", email="other@example.com", is_verified=True)
+    db_session.add_all([user, other_owner])
+    db_session.flush()
+
+    ws1 = Workspace(name="First WS", created_by=user.id, invite_code="listcode1", invite_link="listlink1")
+    ws2 = Workspace(name="Second WS", created_by=other_owner.id, invite_code="listcode2", invite_link="listlink2")
+    ws3 = Workspace(name="Not Mine WS", created_by=other_owner.id, invite_code="listcode3", invite_link="listlink3")
+    db_session.add_all([ws1, ws2, ws3])
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=user.id, workspace_id=ws1.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=user.id, workspace_id=ws2.id, role="admin"))
+    db_session.add(WorkspaceMember(user_id=other_owner.id, workspace_id=ws3.id, role="owner"))
+    db_session.commit()
+
+    mock_user.id = user.id
+    response = client.get("/workspaces")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 2
+
+    workspaces_by_id = {ws["id"]: ws for ws in body}
+    assert workspaces_by_id[ws1.id] == {"id": ws1.id, "name": "First WS", "role": "owner"}
+    assert workspaces_by_id[ws2.id] == {"id": ws2.id, "name": "Second WS", "role": "admin"}
+
+
+def test_list_workspaces_returns_204_when_no_memberships(db_session, mock_user):
+    user = User(username="loner_user", email="loner@example.com", is_verified=True)
+    db_session.add(user)
+    db_session.commit()
+
+    mock_user.id = user.id
+    response = client.get("/workspaces")
+
+    assert response.status_code == 204
+    assert response.content == b"" 
+
+def test_list_workspaces_excludes_other_users_workspaces(db_session, mock_user):
+    user = User(username="me_user", email="me@example.com", is_verified=True)
+    stranger = User(username="stranger", email="stranger@example.com", is_verified=True)
+    db_session.add_all([user, stranger])
+    db_session.flush()
+
+    ws = Workspace(name="Stranger WS", created_by=stranger.id, invite_code="listcode4", invite_link="listlink4")
+    db_session.add(ws)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=stranger.id, workspace_id=ws.id, role="owner"))
+    db_session.commit()
+
+    mock_user.id = user.id
+    response = client.get("/workspaces")
+
+    assert response.status_code == 204
+    assert response.content == b""
+
+
+def test_list_workspaces_includes_correct_role_per_workspace(db_session, mock_user):
+    user = User(username="multi_role_user", email="multi@example.com", is_verified=True)
+    other = User(username="other_multi", email="other_multi@example.com", is_verified=True)
+    db_session.add_all([user, other])
+    db_session.flush()
+
+    ws_owner = Workspace(name="Owned", created_by=user.id, invite_code="mrole1", invite_link="mlink1")
+    ws_admin = Workspace(name="Admin Of", created_by=other.id, invite_code="mrole2", invite_link="mlink2")
+    ws_member = Workspace(name="Member Of", created_by=other.id, invite_code="mrole3", invite_link="mlink3")
+    db_session.add_all([ws_owner, ws_admin, ws_member])
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=user.id, workspace_id=ws_owner.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=user.id, workspace_id=ws_admin.id, role="admin"))
+    db_session.add(WorkspaceMember(user_id=user.id, workspace_id=ws_member.id, role="member"))
+    db_session.commit()
+
+    mock_user.id = user.id
+    response = client.get("/workspaces")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    roles_by_name = {ws["name"]: ws["role"] for ws in body}
+    assert roles_by_name["Owned"] == "owner"
+    assert roles_by_name["Admin Of"] == "admin"
+    assert roles_by_name["Member Of"] == "member"
+
+#List workspace members
+
+def test_list_workspace_members_success(db_session, mock_user):
+    owner = User(username="owner", email="owner@example.com", is_verified=True)
+    member = User(username="member", email="member@example.com", is_verified=True)
+    db_session.add_all([owner, member])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Members WS",
+        created_by=owner.id,
+        invite_code="members1",
+        invite_link="link1",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=member.id, workspace_id=workspace.id, role="member"))
+    integration = WorkspaceIntegrations(workspace_id=workspace.id)
+
+    db_session.add(integration)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="user",
+            source="jira",
+            payload={
+                "id": "jira-owner",
+                "name": "owner",
+                "email": "owner@example.com",
+            },
+        )
+    )
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="user",
+            source="notion",
+            payload={
+                "id": "notion-member",
+                "name": "member",
+                "email": "member@example.com",
+            },
+        )
+    )
+
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.get(f"/workspaces/{workspace.id}/members")
+
+    assert response.status_code == 200
+
+    body = response.json()
+    assert len(body) == 2
+
+    owner_entry = next(x for x in body if x["username"] == "owner")
+    member_entry = next(x for x in body if x["username"] == "member")
+
+    assert owner_entry["jira"]["id"] == "jira-owner"
+    assert owner_entry["notion"] is None
+
+    assert member_entry["jira"] is None
+    assert member_entry["notion"]["id"] == "notion-member"
+
+
+def test_list_workspace_members_username_fallback(db_session, mock_user):
+    user = User(
+        username="fallbackuser",
+        email="platform@example.com",
+        is_verified=True,
+    )
+    db_session.add(user)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Fallback WS",
+        created_by=user.id,
+        invite_code="fallback",
+        invite_link="link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            user_id=user.id,
+            workspace_id=workspace.id,
+            role="owner",
+        )
+    )
+
+    integration = WorkspaceIntegrations(
+        workspace_id=workspace.id
+    )
+
+    db_session.add(integration)
+    db_session.flush()
+
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="user",
+            source="jira",
+            payload={
+                "id": "jira1",
+                "name": "fallbackuser",
+                "email": "different@example.com",
+            },
+        )
+    )
+
+    db_session.commit()
+
+    mock_user.id = user.id
+
+    response = client.get(f"/workspaces/{workspace.id}/members")
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body[0]["jira"]["id"] == "jira1"
+
+
+def test_list_workspace_members_email_precedence_over_username(db_session, mock_user):
+    user = User(
+        username="john",
+        email="john@example.com",
+        is_verified=True,
+    )
+    db_session.add(user)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Priority WS",
+        created_by=user.id,
+        invite_code="priority",
+        invite_link="link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            user_id=user.id,
+            workspace_id=workspace.id,
+            role="owner",
+        )
+    )
+
+    integration = WorkspaceIntegrations(
+        workspace_id=workspace.id
+    )
+
+    db_session.add(integration)
+    db_session.flush()
+
+    db_session.add_all([
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="user",
+            source="jira",
+            payload={
+                "id": "email-match",
+                "name": "someoneelse",
+                "email": "john@example.com",
+            },
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="user",
+            source="jira",
+            payload={
+                "id": "username-match",
+                "name": "john",
+                "email": "other@example.com",
+            },
+        ),
+    ])
+
+    db_session.commit()
+
+    mock_user.id = user.id
+
+    response = client.get(f"/workspaces/{workspace.id}/members")
+
+    assert response.status_code == 200
+
+    assert response.json()[0]["jira"]["id"] == "email-match"
+
+
+def test_list_workspace_members_returns_null_when_no_synced_users(db_session, mock_user):
+    owner = User(
+        username="owner",
+        email="owner@example.com",
+        is_verified=True,
+    )
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Empty Sync",
+        created_by=owner.id,
+        invite_code="empty",
+        invite_link="link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            role="owner",
+        )
+    )
+
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.get(f"/workspaces/{workspace.id}/members")
+
+    assert response.status_code == 200
+
+    member = response.json()[0]
+
+    assert member["jira"] is None
+    assert member["notion"] is None
+
+def test_list_workspace_members_workspace_not_found(db_session, mock_user):
+    mock_user.id = 1
+
+    response = client.get("/workspaces/9999/members")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Workspace not found"
+
+def test_list_workspace_members_forbidden_for_non_member(db_session, mock_user):
+    owner = User(
+        username="owner",
+        email="owner@example.com",
+        is_verified=True,
+    )
+    stranger = User(
+        username="stranger",
+        email="stranger@example.com",
+        is_verified=True,
+    )
+
+    db_session.add_all([owner, stranger])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Private WS",
+        created_by=owner.id,
+        invite_code="private",
+        invite_link="link",
+    )
+
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            role="owner",
+        )
+    )
+
+    db_session.commit()
+
+    mock_user.id = stranger.id
+
+    response = client.get(f"/workspaces/{workspace.id}/members")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "You are not a member of this workspace"
+
+def test_list_workspace_members_uses_latest_sync_batch(db_session, mock_user):
+    owner = User(
+        username="owner",
+        email="owner@example.com",
+        is_verified=True,
+    )
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Latest Sync",
+        created_by=owner.id,
+        invite_code="latest",
+        invite_link="link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            role="owner",
+        )
+    )
+
+    db_session.add(
+        WorkspaceIntegrations(
+            workspace_id=workspace.id,
+        )
+    )
+    db_session.flush()
+
+    old_time = datetime.now(timezone.utc) - timedelta(hours=1)
+    new_time = datetime.now(timezone.utc)
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="user",
+            source="jira",
+            fetched_at=old_time,
+            payload={
+                "id": "jira-user-old",
+                "name": "Old Name",
+                "email": "owner@example.com",
+            },
+        )
+    )
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="user",
+            source="jira",
+            fetched_at=new_time,
+            payload={
+                "id": "jira-user-new",
+                "name": "New Name",
+                "email": "owner@example.com",
+            },
+        )
+    )
+
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.get(f"/workspaces/{workspace.id}/members")
+
+    assert response.status_code == 200
+
+    member = response.json()[0]
+
+    assert member["jira"]["id"] == "jira-user-new"
+    assert member["jira"]["name"] == "New Name"
+    assert member["jira"]["email"] == "owner@example.com"

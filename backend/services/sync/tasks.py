@@ -3,8 +3,8 @@ from utils.database import SessionLocal
 from models.workspace_integration import WorkspaceIntegrations
 from sqlalchemy import func
 from utils.redis_client import redis_client
-from services.sync.jira_sync import gather_and_store_jira_users
-from services.sync.notion_sync import gather_and_store_notion_users
+from services.sync.jira_sync import gather_and_store_jira_users, gather_and_store_jira_projects, gather_and_store_jira_tasks
+from services.sync.notion_sync import gather_and_store_notion_users, gather_and_store_notion_databases, gather_and_store_notion_tasks
 
 @celery_app.task
 def sync_workspace_data(workspace_id: int):
@@ -15,18 +15,16 @@ def sync_workspace_data(workspace_id: int):
 		if not integration:
 			return
 
-		# Jira sync, uncomment once Nour's functions exist:
 		if integration.jira_api_key:
 			gather_and_store_jira_users(workspace_id, db)
-			# gather_and_store_jira_projects(workspace_id, db)
-			# gather_and_store_jira_tasks(workspace_id, db)
+			gather_and_store_jira_projects(workspace_id, db)
+			gather_and_store_jira_tasks(workspace_id, db)
 			pass
 
-		# Notion sync, uncomment once Abbas's functions exist:
 		if integration.notion_api_key:
 			gather_and_store_notion_users(workspace_id, db)
-			# gather_and_store_notion_databases(workspace_id, db)
-			# gather_and_store_notion_tasks(workspace_id, db)
+			gather_and_store_notion_databases(workspace_id, db)
+			gather_and_store_notion_tasks(workspace_id, db)
 			pass
 		
 		redis_client.setex(f"sync_cooldown:{workspace_id}", 300, "1")
