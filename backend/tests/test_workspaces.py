@@ -1502,3 +1502,267 @@ def test_list_workspace_members_uses_latest_sync_batch(db_session, mock_user):
     assert member["jira"]["id"] == "jira-user-new"
     assert member["jira"]["name"] == "New Name"
     assert member["jira"]["email"] == "owner@example.com"
+    
+#Update Member Role (Promote/Demote) tests
+
+def test_update_member_role_success_as_owner(db_session, mock_user):
+    owner = User(username="role_owner", email="role_owner@example.com", is_verified=True)
+    member = User(username="role_member", email="role_member@example.com", is_verified=True)
+    db_session.add_all([owner, member])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Role WS",
+        created_by=owner.id,
+        invite_code="role1",
+        invite_link="link_role1",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=member.id, workspace_id=workspace.id, role="member"))
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.patch(
+        f"/workspaces/{workspace.id}/members/{member.id}",
+        json={"role": "admin"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "user_id": member.id,
+        "workspace_id": workspace.id,
+        "role": "admin",
+    }
+
+    updated_membership = (
+        db_session.query(WorkspaceMember)
+        .filter(WorkspaceMember.workspace_id == workspace.id, WorkspaceMember.user_id == member.id)
+        .first()
+    )
+    assert updated_membership.role == "admin"
+
+
+def test_update_member_role_success_as_admin(db_session, mock_user):
+    owner = User(username="role_owner2", email="role_owner2@example.com", is_verified=True)
+    admin_user = User(username="role_admin2", email="role_admin2@example.com", is_verified=True)
+    member = User(username="role_member2", email="role_member2@example.com", is_verified=True)
+    db_session.add_all([owner, admin_user, member])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Role WS Admin",
+        created_by=owner.id,
+        invite_code="role2",
+        invite_link="link_role2",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=admin_user.id, workspace_id=workspace.id, role="admin"))
+    db_session.add(WorkspaceMember(user_id=member.id, workspace_id=workspace.id, role="member"))
+    db_session.commit()
+
+    mock_user.id = admin_user.id
+    response = client.patch(
+        f"/workspaces/{workspace.id}/members/{member.id}",
+        json={"role": "admin"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["role"] == "admin"
+
+
+def test_update_member_role_demote_admin_to_member(db_session, mock_user):
+    owner = User(username="role_owner3", email="role_owner3@example.com", is_verified=True)
+    admin_user = User(username="role_admin3", email="role_admin3@example.com", is_verified=True)
+    db_session.add_all([owner, admin_user])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Demote WS",
+        created_by=owner.id,
+        invite_code="role3",
+        invite_link="link_role3",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=admin_user.id, workspace_id=workspace.id, role="admin"))
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.patch(
+        f"/workspaces/{workspace.id}/members/{admin_user.id}",
+        json={"role": "member"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["role"] == "member"
+
+
+def test_update_member_role_forbidden_for_regular_member(db_session, mock_user):
+    owner = User(username="role_owner4", email="role_owner4@example.com", is_verified=True)
+    member = User(username="role_member4", email="role_member4@example.com", is_verified=True)
+    other_member = User(username="role_other4", email="role_other4@example.com", is_verified=True)
+    db_session.add_all([owner, member, other_member])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Forbidden Role WS",
+        created_by=owner.id,
+        invite_code="role4",
+        invite_link="link_role4",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=member.id, workspace_id=workspace.id, role="member"))
+    db_session.add(WorkspaceMember(user_id=other_member.id, workspace_id=workspace.id, role="member"))
+    db_session.commit()
+
+    mock_user.id = member.id
+    response = client.patch(
+        f"/workspaces/{workspace.id}/members/{other_member.id}",
+        json={"role": "admin"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Only workspace owners or admins can change membership status"
+
+
+def test_update_member_role_workspace_not_found(db_session, mock_user):
+    mock_user.id = 1
+    response = client.patch(
+        "/workspaces/9999/members/1",
+        json={"role": "admin"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Workspace not found"
+
+
+def test_update_member_role_caller_not_a_member(db_session, mock_user):
+    owner = User(username="role_owner5", email="role_owner5@example.com", is_verified=True)
+    stranger = User(username="role_stranger5", email="role_stranger5@example.com", is_verified=True)
+    member = User(username="role_member5", email="role_member5@example.com", is_verified=True)
+    db_session.add_all([owner, stranger, member])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Stranger Role WS",
+        created_by=owner.id,
+        invite_code="role5",
+        invite_link="link_role5",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=member.id, workspace_id=workspace.id, role="member"))
+    db_session.commit()
+
+    mock_user.id = stranger.id
+    response = client.patch(
+        f"/workspaces/{workspace.id}/members/{member.id}",
+        json={"role": "admin"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "You are not a member of this workspace"
+
+
+def test_update_member_role_target_user_not_a_member(db_session, mock_user):
+    owner = User(username="role_owner6", email="role_owner6@example.com", is_verified=True)
+    non_member = User(username="role_nonmember6", email="role_nonmember6@example.com", is_verified=True)
+    db_session.add_all([owner, non_member])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Target Not Member WS",
+        created_by=owner.id,
+        invite_code="role6",
+        invite_link="link_role6",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.patch(
+        f"/workspaces/{workspace.id}/members/{non_member.id}",
+        json={"role": "admin"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Target user is not a member of this workspace"
+
+
+def test_update_member_role_invalid_role_value(db_session, mock_user):
+    owner = User(username="role_owner7", email="role_owner7@example.com", is_verified=True)
+    member = User(username="role_member7", email="role_member7@example.com", is_verified=True)
+    db_session.add_all([owner, member])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Invalid Role WS",
+        created_by=owner.id,
+        invite_code="role7",
+        invite_link="link_role7",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=member.id, workspace_id=workspace.id, role="member"))
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.patch(
+        f"/workspaces/{workspace.id}/members/{member.id}",
+        json={"role": "owner"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_member_role_cannot_demote_sole_owner(db_session, mock_user):
+    owner = User(username="role_owner8", email="role_owner8@example.com", is_verified=True)
+    admin_user = User(username="role_admin8", email="role_admin8@example.com", is_verified=True)
+    db_session.add_all([owner, admin_user])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Sole Owner WS",
+        created_by=owner.id,
+        invite_code="role8",
+        invite_link="link_role8",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=admin_user.id, workspace_id=workspace.id, role="admin"))
+    db_session.commit()
+
+    mock_user.id = admin_user.id
+    response = client.patch(
+        f"/workspaces/{workspace.id}/members/{owner.id}",
+        json={"role": "member"},
+    )
+
+    assert response.status_code == 400
+
+    unchanged_membership = (
+        db_session.query(WorkspaceMember)
+        .filter(WorkspaceMember.workspace_id == workspace.id, WorkspaceMember.user_id == owner.id)
+        .first()
+    )
+    assert unchanged_membership.role == "owner"
