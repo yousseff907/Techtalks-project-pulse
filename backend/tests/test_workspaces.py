@@ -1,3 +1,4 @@
+import itertools
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -22,10 +23,14 @@ def clear_overrides():
     app.dependency_overrides.clear()
 
 
-def create_test_user(db_session):
+_test_user_counter = itertools.count(1)
+
+
+def create_test_user(db_session, username=None, email=None):
+    n = next(_test_user_counter)
     user = User(
-        username="testuser",
-        email="test@example.com",
+        username=username or f"testuser{n}",
+        email=email or f"test{n}@example.com",
         is_verified=True,
     )
 
