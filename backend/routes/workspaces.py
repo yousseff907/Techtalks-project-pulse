@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Response, status
 from pydantic import BaseModel
@@ -29,7 +29,7 @@ class UpdateWorkspaceNameRequest(BaseModel):
 	name: str
 
 class UpdateMemberRoleRequest(BaseModel):
-	role: str
+    role: Literal["admin", "member"]
 
 @router.post("/workspaces", status_code=201)
 def	create_workspace(request: CreateWorkspaceRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

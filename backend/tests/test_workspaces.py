@@ -1,4 +1,5 @@
 import itertools
+from urllib import response
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -1613,13 +1614,13 @@ def test_get_workspace_data_latest_batch(db_session):
     response = client.get(
         f"/workspaces/{workspace.id}/data"
     )
+assert response.status_code == 200
+data = response.json()
+titles = [item["title"] for item in data]
 
-    assert response.status_code == 200
-
-    data = response.json()
-
-    assert len(data) == 1
-    assert data[0]["title"] == "New Task"
+assert len(data) == 1
+assert "New Task" in titles
+assert "Old Task" not in titles
 
 def test_get_workspace_data_type_filter(db_session):
 
@@ -1784,8 +1785,84 @@ def test_get_workspace_data_search(db_session):
     assert response.status_code == 200
     assert len(response.json()) == 1
     assert response.json()[0]["title"] == "Backend Login"
-    
-    
+
+def test_get_workspace_data_combined_filters(db_session):
+
+    user = create_test_user(db_session)
+
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    workspace = create_workspace(
+        db_session,
+        user,
+    )
+
+    now = datetime.now(timezone.utc)
+
+    db_session.add_all([
+        # Matches every filter: type, source, status, and search
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Backend Login",
+            status="DONE",
+            fetched_at=now,
+        ),
+        # Wrong status only
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Backend API",
+            status="TODO",
+            fetched_at=now,
+        ),
+        # Wrong type only
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="project",
+            source="jira",
+            title="Backend Design",
+            status="DONE",
+            fetched_at=now,
+        ),
+        # Wrong source only
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="notion",
+            title="Backend Notion",
+            status="DONE",
+            fetched_at=now,
+        ),
+        # Wrong search term only
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Frontend Login",
+            status="DONE",
+            fetched_at=now,
+        ),
+    ])
+
+    db_session.commit()
+
+    response = client.get(
+        f"/workspaces/{workspace.id}/data"
+        "?type=task&source=jira&status=DONE&search=backend"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["title"] == "Backend Login"
+    assert data[0]["type"] == "task"
+    assert data[0]["source"] == "jira"
+    assert data[0]["status"] == "DONE"
 
 def test_get_workspace_data_workspace_not_found(db_session):
 
