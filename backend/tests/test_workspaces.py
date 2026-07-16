@@ -2041,8 +2041,7 @@ def test_remove_member_cannot_remove_owner(db_session, mock_user):
 #AI Summary Generation Tests
 
 
-
-def test_generate_workspace_summary_success(db_session, mock_user, monkeypatch):
+def test_generate_workspace_summary_success(db_session, mock_user):
     owner = User(
         username="owner",
         email="owner@test.com",
@@ -2071,24 +2070,18 @@ def test_generate_workspace_summary_success(db_session, mock_user, monkeypatch):
 
     mock_user.id = owner.id
 
-    def fake_generate_summary(workspace_id, db):
-        return "Workspace summary"
-
-    monkeypatch.setattr(
-        routes.workspaces,
-        "generate_workspace_summary",
-        fake_generate_summary,
-    )
-
-    response = client.post(
-        f"/workspaces/{workspace.id}/summary"
-    )
+    with patch(
+        "routes.workspaces.generate_workspace_summary",
+        return_value="Workspace summary",
+    ):
+        response = client.post(
+            f"/workspaces/{workspace.id}/summary"
+        )
 
     assert response.status_code == 200
     assert response.json() == {
         "summary": "Workspace summary"
     }
-
 
 
 def test_generate_workspace_summary_workspace_not_found(db_session, mock_user):
@@ -2100,7 +2093,6 @@ def test_generate_workspace_summary_workspace_not_found(db_session, mock_user):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Workspace not found"
-
 
 
 def test_generate_workspace_summary_forbidden_non_member(db_session, mock_user):
@@ -2147,49 +2139,45 @@ def test_generate_workspace_summary_forbidden_non_member(db_session, mock_user):
     assert response.json()["detail"] == "You are not a member of this workspace"
 
 
-
-def test_generate_workspace_summary_runtime_error(db_session, mock_user, monkeypatch):
-    owner = User(
-        username="owner",
-        email="owner@test.com",
+def test_generate_workspace_summary_runtime_error(db_session, mock_user):
+    user = User(
+        username="summary_user",
+        email="summary@test.com",
         is_verified=True,
     )
-    db_session.add(owner)
+    db_session.add(user)
     db_session.flush()
 
     workspace = Workspace(
-        name="Workspace",
-        created_by=owner.id,
-        invite_code="abc",
-        invite_link="abc",
+        name="Summary Workspace",
+        created_by=user.id,
+        invite_code="summary123",
+        invite_link="summary-link",
     )
     db_session.add(workspace)
     db_session.flush()
 
     db_session.add(
         WorkspaceMember(
-            user_id=owner.id,
+            user_id=user.id,
             workspace_id=workspace.id,
             role="owner",
         )
     )
     db_session.commit()
 
-    mock_user.id = owner.id
+    mock_user.id = user.id
 
-    def fake_generate_summary(workspace_id, db):
-        raise RuntimeError("Gemini API unavailable")
-
-    monkeypatch.setattr(
-        routes.workspaces,
-        "generate_workspace_summary",
-        fake_generate_summary,
-    )
-
-    response = client.post(
-        f"/workspaces/{workspace.id}/summary"
-    )
+    with patch(
+        "routes.workspaces.generate_workspace_summary",
+        side_effect=RuntimeError("Gemini API unavailable"),
+    ):
+        response = client.post(
+            f"/workspaces/{workspace.id}/summary"
+        )
 
     assert response.status_code == 502
-    assert response.json()["detail"] == "Failed to generate workspace summary"
-
+    assert (
+        response.json()["detail"]
+        == "Failed to generate workspace summary"
+    )
