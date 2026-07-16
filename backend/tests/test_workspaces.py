@@ -14,7 +14,45 @@ from models.workspace_data import WorkspaceData
 from datetime import datetime, timedelta, timezone
 
 client = TestClient(app)
+def create_test_user(db_session):
+    user = User(
+        username="testuser",
+        email="test@example.com",
+        password="password",
+    )
 
+    db_session.add(user)
+    db_session.flush()
+
+    return user
+
+
+def create_workspace(db_session, user):
+    workspace = Workspace(
+        name="Workspace",
+        created_by=user.id,
+        invite_code="abc",
+        invite_link="abc",
+    )
+
+    db_session.add(workspace)
+    db_session.flush()
+
+    member = WorkspaceMember(
+        workspace_id=workspace.id,
+        user_id=user.id,
+        role="owner",
+    )
+
+    integration = WorkspaceIntegrations(
+        workspace_id=workspace.id,
+    )
+
+    db_session.add(member)
+    db_session.add(integration)
+    db_session.flush()
+
+    return workspace
 def	test_workspace_creation(db_session, mock_user):
      
     user = User(username="test_user", email="test_user@example.com", is_verified=True)
@@ -1503,62 +1541,34 @@ def test_list_workspace_members_uses_latest_sync_batch(db_session, mock_user):
     assert member["jira"]["name"] == "New Name"
     assert member["jira"]["email"] == "owner@example.com"
     
-def test_get_workspace_data_empty(db_session, mock_user):
-    workspace = Workspace(
-        name="Workspace",
-        created_by=mock_user.id,
-        invite_code="abc",
-        invite_link="abc",
-    )
-    db_session.add(workspace)
-    db_session.flush()
+def test_get_workspace_data_empty(db_session, client):
 
-    db_session.add(
-        WorkspaceMember(
-            workspace_id=workspace.id,
-            user_id=mock_user.id,
-            role="owner",
-        )
+    user = create_test_user(db_session)
+
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    workspace = create_workspace(
+        db_session,
+        user,
     )
 
-    db_session.add(
-        WorkspaceIntegrations(
-            workspace_id=workspace.id,
-        )
+    response = client.get(
+        f"/workspaces/{workspace.id}/data"
     )
-
-    db_session.commit()
-
-    response = client.get(f"/workspaces/{workspace.id}/data")
 
     assert response.status_code == 200
     assert response.json() == []
     
-def test_get_workspace_data_latest_batch(db_session, mock_user):
-    workspace = Workspace(
-        name="Workspace",
-        created_by=mock_user.id,
-        invite_code="abc",
-        invite_link="abc",
+def test_get_workspace_data_latest_batch(db_session, client):
+
+    user = create_test_user(db_session)
+
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    workspace = create_workspace(
+        db_session,
+        user,
     )
-
-    db_session.add(workspace)
-    db_session.flush()
-
-    db_session.add(
-        WorkspaceMember(
-            workspace_id=workspace.id,
-            user_id=mock_user.id,
-            role="owner",
-        )
-    )
-
-    integration = WorkspaceIntegrations(
-        workspace_id=workspace.id,
-    )
-
-    db_session.add(integration)
-    db_session.flush()
 
     old_time = datetime.now(timezone.utc) - timedelta(days=1)
     new_time = datetime.now(timezone.utc)
@@ -1568,7 +1578,8 @@ def test_get_workspace_data_latest_batch(db_session, mock_user):
             integration_id=workspace.id,
             type="task",
             source="jira",
-            title="Old",
+            title="Old Task",
+            status="DONE",
             fetched_at=old_time,
         )
     )
@@ -1578,68 +1589,54 @@ def test_get_workspace_data_latest_batch(db_session, mock_user):
             integration_id=workspace.id,
             type="task",
             source="jira",
-            title="Newest",
+            title="New Task",
+            status="TODO",
             fetched_at=new_time,
         )
     )
 
     db_session.commit()
 
-    response = client.get(f"/workspaces/{workspace.id}/data")
+    response = client.get(
+        f"/workspaces/{workspace.id}/data"
+    )
 
     assert response.status_code == 200
-    assert len(response.json()) == 1
-    assert response.json()[0]["title"] == "Newest"
 
+    data = response.json()
 
-def test_get_workspace_data_type_filter(db_session, mock_user):
-    workspace = Workspace(
-        name="Workspace",
-        created_by=mock_user.id,
-        invite_code="abc",
-        invite_link="abc",
+    assert len(data) == 1
+    assert data[0]["title"] == "New Task"
+
+def test_get_workspace_data_type_filter(db_session, client):
+
+    user = create_test_user(db_session)
+
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    workspace = create_workspace(
+        db_session,
+        user,
     )
-
-    db_session.add(workspace)
-    db_session.flush()
-
-    db_session.add(
-        WorkspaceMember(
-            workspace_id=workspace.id,
-            user_id=mock_user.id,
-            role="owner",
-        )
-    )
-
-    db_session.add(
-        WorkspaceIntegrations(
-            workspace_id=workspace.id,
-        )
-    )
-
-    db_session.flush()
 
     now = datetime.now(timezone.utc)
 
-    db_session.add(
+    db_session.add_all([
         WorkspaceData(
             integration_id=workspace.id,
             type="task",
             source="jira",
             title="Task",
             fetched_at=now,
-        )
-    )
-
-    db_session.add(
+        ),
         WorkspaceData(
             integration_id=workspace.id,
             type="project",
             source="jira",
             title="Project",
             fetched_at=now,
-        )
-    )
+        ),
+    ])
 
     db_session.commit()
 
@@ -1650,55 +1647,36 @@ def test_get_workspace_data_type_filter(db_session, mock_user):
     assert response.status_code == 200
     assert len(response.json()) == 1
     assert response.json()[0]["type"] == "task"
+    
+def test_get_workspace_data_source_filter(db_session, client):
 
-def test_get_workspace_data_source_filter(db_session, mock_user):
-    workspace = Workspace(
-        name="Workspace",
-        created_by=1,
-        invite_code="abc",
-        invite_link="abc",
+    user = create_test_user(db_session)
+
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    workspace = create_workspace(
+        db_session,
+        user,
     )
-
-    db_session.add(workspace)
-    db_session.flush()
-
-    db_session.add(
-        WorkspaceMember(
-            workspace_id=workspace.id,
-            created_by=1,
-            role="owner",
-        )
-    )
-
-    db_session.add(
-        WorkspaceIntegrations(
-            workspace_id=workspace.id,
-        )
-    )
-
-    db_session.flush()
 
     now = datetime.now(timezone.utc)
 
-    db_session.add(
+    db_session.add_all([
         WorkspaceData(
             integration_id=workspace.id,
             type="task",
             source="jira",
-            title="Task",
+            title="Jira Task",
             fetched_at=now,
-        )
-    )
-
-    db_session.add(
+        ),
         WorkspaceData(
             integration_id=workspace.id,
-            type="project",
-            source="asana",
-            title="Project",
+            type="task",
+            source="notion",
+            title="Notion Task",
             fetched_at=now,
-        )
-    )
+        ),
+    ])
 
     db_session.commit()
 
@@ -1711,8 +1689,124 @@ def test_get_workspace_data_source_filter(db_session, mock_user):
     assert response.json()[0]["source"] == "jira"
 
 
-def test_get_workspace_data_workspace_not_found():
-    response = client.get("/workspaces/999999/data")
+def test_get_workspace_data_status_filter(db_session, client):
+
+    user = create_test_user(db_session)
+
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    workspace = create_workspace(
+        db_session,
+        user,
+    )
+
+    now = datetime.now(timezone.utc)
+
+    db_session.add_all([
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Done",
+            status="DONE",
+            fetched_at=now,
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Todo",
+            status="TODO",
+            fetched_at=now,
+        ),
+    ])
+
+    db_session.commit()
+
+    response = client.get(
+        f"/workspaces/{workspace.id}/data?status=DONE"
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["status"] == "DONE"
+
+
+def test_get_workspace_data_search(db_session, client):
+
+    user = create_test_user(db_session)
+
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    workspace = create_workspace(
+        db_session,
+        user,
+    )
+
+    now = datetime.now(timezone.utc)
+
+    db_session.add_all([
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Backend Login",
+            fetched_at=now,
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Frontend",
+            fetched_at=now,
+        ),
+    ])
+
+    db_session.commit()
+
+    response = client.get(
+        f"/workspaces/{workspace.id}/data?search=backend"
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["title"] == "Backend Login"
+    
+    
+
+def test_get_workspace_data_workspace_not_found(db_session, client):
+
+    user = create_test_user(db_session)
+
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    response = client.get(
+        "/workspaces/999999/data"
+    )
 
     assert response.status_code == 404
+
+
+def test_get_workspace_data_not_member(db_session, client):
+
+    user = create_test_user(db_session)
+
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    other_user = create_test_user(db_session)
+
+    workspace = Workspace(
+        name="Private",
+        created_by=other_user.id,
+        invite_code="xyz",
+        invite_link="xyz",
+    )
+
+    db_session.add(workspace)
+    db_session.commit()
+
+    response = client.get(
+        f"/workspaces/{workspace.id}/data"
+    )
+
     assert response.status_code == 403
