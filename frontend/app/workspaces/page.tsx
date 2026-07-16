@@ -14,11 +14,11 @@ interface Workspace {
 	id: number;
 	name: string;
 	role: string;
-    member_count: number;
-    created_at: string;
+	member_count: number;
+	created_at: string;
 }
 
-function authHeaders(token: string |null) {
+function authHeaders(token: string | null) {
 	return {
 		"Content-Type": "application/json",
 		...(token
@@ -27,61 +27,34 @@ function authHeaders(token: string |null) {
 	};
 }
 
-const mockWorkspaces: Workspace[] = [
-    {
-    id: 1,
-    name: "Project Pulse",
-    role: "owner",
-    member_count: 12,
-    created_at: "2026-06-22T14:30:00Z",
-    },
-
-    {		id: 2,
-		name: "Development",
-		role: "admin",
-        member_count: 12,
-        created_at: "2026-07-24T14:23:00Z",
-	},
-	{
-		id: 3,
-		name: "Marketing",
-		role: "member",
-        member_count: 12,
-        created_at: "2026-02-21T19:10:00Z",
-	},
-];
-
 async function fetchWorkspaces(
-	token: string | null
+    token: string | null
 ): Promise<Workspace[]> {
+    const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/workspaces`,
+        {
+            method: "GET",
+            headers: authHeaders(token),
+        }
+    );
 
-	// Temporary until backend integration
-	return Promise.resolve(mockWorkspaces);
+    if (response.status === 204) {
+        return [];
+    }
 
-	/*
-	const response = await fetch(
-		`${process.env.NEXT_PUBLIC_API_URL}/workspaces`,
-		{
-			method: "GET",
-			headers: authHeaders(token),
-		}
-	);
+    if (!response.ok) {
+        const error = await response.json();
 
-	if (!response.ok) {
-		const error = await response.json();
+        throw new Error(
+            error.detail ??
+            "Failed to load workspaces"
+        );
+    }
 
-		throw new Error(
-			error.detail ??
-			"Failed to load workspaces"
-		);
-	}
-
-	return response.json();
-	*/
+    return response.json();
 }
 
 export default function WorkspacesPage() {
-
 	const router = useRouter();
 
 	const accessToken = useAuthStore(
@@ -96,12 +69,9 @@ export default function WorkspacesPage() {
 	} = useQuery({
 		queryKey: ["workspaces"],
 		queryFn: () => fetchWorkspaces(accessToken),
-
-		// Restore when backend is connected.
-		// enabled: !!accessToken,
+		enabled: !!accessToken,
 	});
 
-	/*
 	if (!accessToken) {
 		return (
 			<main className="mx-auto max-w-3xl p-8">
@@ -116,7 +86,6 @@ export default function WorkspacesPage() {
 			</main>
 		);
 	}
-	*/
 
 	return (
 		<main className="mx-auto max-w-3xl space-y-6 p-8">
@@ -207,10 +176,12 @@ export default function WorkspacesPage() {
 												Role: {workspace.role}
 											</p>
 
-                                            <p className="text-sm text-muted-foreground">
-                                            {workspace.member_count} members • Created on {" "}
-                                            {new Date(workspace.created_at).toLocaleDateString()}
-                                            </p>
+											<p className="text-sm text-muted-foreground">
+												{workspace.member_count} members • Created on{" "}
+												{new Date(
+													workspace.created_at
+												).toLocaleDateString()}
+											</p>
 										</div>
 
 										<Button

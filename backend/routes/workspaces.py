@@ -126,23 +126,49 @@ def join_workspace(
         "name": workspace.name,
     }
 
+from sqlalchemy import func
+
 @router.get("/workspaces")
 def list_workspaces(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    member_count = (
+        db.query(func.count(WorkspaceMember.user_id))
+        .filter(WorkspaceMember.workspace_id == Workspace.id)
+        .correlate(Workspace)
+        .scalar_subquery()
+    )
+
     rows = (
-        db.query(Workspace.id, Workspace.name, WorkspaceMember.role)
-        .join(WorkspaceMember, WorkspaceMember.workspace_id == Workspace.id)
-        .filter(WorkspaceMember.user_id == current_user.id)
+        db.query(
+            Workspace.id,
+            Workspace.name,
+            Workspace.created_at,
+            WorkspaceMember.role,
+            member_count.label("member_count"),
+        )
+        .join(
+            WorkspaceMember,
+            WorkspaceMember.workspace_id == Workspace.id,
+        )
+        .filter(
+            WorkspaceMember.user_id == current_user.id,
+        )
         .all()
     )
 
     if not rows:
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
+        return []
 
     return [
-        {"id": row.id, "name": row.name, "role": row.role}
+        {
+            "id": row.id,
+            "name": row.name,
+            "role": row.role,
+            "member_count": row.member_count,
+            "created_at": row.created_at,
+        }
         for row in rows
     ]
 
