@@ -127,7 +127,6 @@ def join_workspace(
     }
 
 
-
 @router.get("/workspaces")
 def list_workspaces(
     current_user: User = Depends(get_current_user),
