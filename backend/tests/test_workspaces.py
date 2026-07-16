@@ -1652,11 +1652,63 @@ def test_get_workspace_data_type_filter(db_session, mock_user):
     assert response.json()[0]["type"] == "task"
 
 def test_get_workspace_data_source_filter(db_session, mock_user):
-    response = client.get(
-        f"/workspaces/1/data?source=jira"
+    workspace = Workspace(
+        name="Workspace",
+        created_by=mock_user.id,
+        invite_code="abc",
+        invite_link="abc",
     )
 
-    assert response.status_code in (200, 404)
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            workspace_id=workspace.id,
+            user_id=mock_user.id,
+            role="owner",
+        )
+    )
+
+    db_session.add(
+        WorkspaceIntegrations(
+            workspace_id=workspace.id,
+        )
+    )
+
+    db_session.flush()
+
+    now = datetime.now(timezone.utc)
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Task",
+            fetched_at=now,
+        )
+    )
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="project",
+            source="asana",
+            title="Project",
+            fetched_at=now,
+        )
+    )
+
+    db_session.commit()
+
+    response = client.get(
+        f"/workspaces/{workspace.id}/data?source=jira"
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["source"] == "jira"
 
 
 def test_get_workspace_data_workspace_not_found():
