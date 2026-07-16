@@ -78,6 +78,7 @@ export default function CreateWorkspacePage() {
 					<Input
 						id="name"
 						placeholder="Acme Engineering"
+						className="border border-border shadow-sm"
 						{...register("name")}
 					/>
 					{errors.name && (
