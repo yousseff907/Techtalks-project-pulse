@@ -675,7 +675,7 @@ def generate_summary(
     try:
         summary = generate_workspace_summary(workspace_id, db)
 
-    except RuntimeError as e:
+    except RuntimeError:
         raise HTTPException(
             status_code=502,
             detail="Failed to generate workspace summary",
