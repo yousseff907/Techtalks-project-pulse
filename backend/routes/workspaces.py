@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Response, status
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from utils.database import get_db, Session
 from utils.dependencies import get_current_user
@@ -126,7 +126,7 @@ def join_workspace(
         "name": workspace.name,
     }
 
-from sqlalchemy import func
+
 
 @router.get("/workspaces")
 def list_workspaces(
