@@ -1614,13 +1614,13 @@ def test_get_workspace_data_latest_batch(db_session):
     response = client.get(
         f"/workspaces/{workspace.id}/data"
     )
-assert response.status_code == 200
-data = response.json()
-titles = [item["title"] for item in data]
+    assert response.status_code == 200
+    data = response.json()
+    titles = [item["title"] for item in data]
 
-assert len(data) == 1
-assert "New Task" in titles
-assert "Old Task" not in titles
+    assert len(data) == 1
+    assert "New Task" in titles
+    assert "Old Task" not in titles
 
 def test_get_workspace_data_type_filter(db_session):
 
