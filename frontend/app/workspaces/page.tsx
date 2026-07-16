@@ -28,30 +28,26 @@ function authHeaders(token: string | null) {
 }
 
 async function fetchWorkspaces(
-    token: string | null
+	token: string | null
 ): Promise<Workspace[]> {
-    const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/workspaces`,
-        {
-            method: "GET",
-            headers: authHeaders(token),
-        }
-    );
+	const response = await fetch(
+		`${process.env.NEXT_PUBLIC_API_URL}/workspaces`,
+		{
+			method: "GET",
+			headers: authHeaders(token),
+		}
+	);
 
-    if (response.status === 204) {
-        return [];
-    }
+	if (!response.ok) {
+		const error = await response.json();
 
-    if (!response.ok) {
-        const error = await response.json();
+		throw new Error(
+			error.detail ??
+			"Failed to load workspaces"
+		);
+	}
 
-        throw new Error(
-            error.detail ??
-            "Failed to load workspaces"
-        );
-    }
-
-    return response.json();
+	return response.json();
 }
 
 export default function WorkspacesPage() {
