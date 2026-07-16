@@ -12,7 +12,6 @@ from models.workspace_member import WorkspaceMember
 from models.workspace_integration import WorkspaceIntegrations
 from models.workspace_data import WorkspaceData
 from datetime import datetime, timedelta, timezone
-import routes.workspaces
 
 
 client = TestClient(app)
