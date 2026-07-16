@@ -109,6 +109,7 @@ function VerifyPageContent() {
 						inputMode="numeric"
 						maxLength={6}
 						placeholder="123456"
+						className="border border-border shadow-sm"
 						{...register("code")}
 					/>
 					{errors.code && (
