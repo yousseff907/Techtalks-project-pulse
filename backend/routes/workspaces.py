@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Response, status
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from utils.database import get_db, Session
 from utils.dependencies import get_current_user
@@ -15,6 +15,7 @@ from services.sync.tasks import sync_workspace_data
 from utils.redis_client import redis_client
 from sqlalchemy import and_, func, or_
 from typing import Literal
+from services.ai_summary import generate_workspace_summary
 
 router = APIRouter()
 
@@ -125,23 +126,48 @@ def join_workspace(
         "name": workspace.name,
     }
 
+
 @router.get("/workspaces")
 def list_workspaces(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    member_count = (
+        db.query(func.count(WorkspaceMember.user_id))
+        .filter(WorkspaceMember.workspace_id == Workspace.id)
+        .correlate(Workspace)
+        .scalar_subquery()
+    )
+
     rows = (
-        db.query(Workspace.id, Workspace.name, WorkspaceMember.role)
-        .join(WorkspaceMember, WorkspaceMember.workspace_id == Workspace.id)
-        .filter(WorkspaceMember.user_id == current_user.id)
+        db.query(
+            Workspace.id,
+            Workspace.name,
+            Workspace.created_at,
+            WorkspaceMember.role,
+            member_count.label("member_count"),
+        )
+        .join(
+            WorkspaceMember,
+            WorkspaceMember.workspace_id == Workspace.id,
+        )
+        .filter(
+            WorkspaceMember.user_id == current_user.id,
+        )
         .all()
     )
 
     if not rows:
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
+        return []
 
     return [
-        {"id": row.id, "name": row.name, "role": row.role}
+        {
+            "id": row.id,
+            "name": row.name,
+            "role": row.role,
+            "member_count": row.member_count,
+            "created_at": row.created_at,
+        }
         for row in rows
     ]
 
@@ -634,3 +660,52 @@ def remove_workspace_member(
     db.commit()
 
     return {"message": "Member removed successfully"}
+
+
+#AI Summary Generation Endpoint
+
+@router.post("/workspaces/{workspace_id}/summary", status_code=200)
+def generate_summary(
+    workspace_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    workspace = (
+        db.query(Workspace)
+        .filter(Workspace.id == workspace_id)
+        .first()
+    )
+
+    if not workspace:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace not found",
+        )
+
+    membership = (
+        db.query(WorkspaceMember)
+        .filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not membership:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this workspace",
+        )
+
+    try:
+        summary = generate_workspace_summary(workspace_id, db)
+
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to generate workspace summary",
+        )
+
+    return {
+        "summary": summary,
+    }

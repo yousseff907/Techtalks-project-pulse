@@ -13,6 +13,7 @@ from models.workspace_integration import WorkspaceIntegrations
 from models.workspace_data import WorkspaceData
 from datetime import datetime, timedelta, timezone
 
+
 client = TestClient(app)
 
 def	test_workspace_creation(db_session, mock_user):
@@ -1070,15 +1071,26 @@ def test_list_workspaces_returns_user_workspaces(db_session, mock_user):
     response = client.get("/workspaces")
 
     assert response.status_code == 200
+
     body = response.json()
     assert len(body) == 2
 
     workspaces_by_id = {ws["id"]: ws for ws in body}
-    assert workspaces_by_id[ws1.id] == {"id": ws1.id, "name": "First WS", "role": "owner"}
-    assert workspaces_by_id[ws2.id] == {"id": ws2.id, "name": "Second WS", "role": "admin"}
+
+    assert workspaces_by_id[ws1.id]["id"] == ws1.id
+    assert workspaces_by_id[ws1.id]["name"] == "First WS"
+    assert workspaces_by_id[ws1.id]["role"] == "owner"
+    assert workspaces_by_id[ws1.id]["member_count"] == 1
+    assert "created_at" in workspaces_by_id[ws1.id]
+
+    assert workspaces_by_id[ws2.id]["id"] == ws2.id
+    assert workspaces_by_id[ws2.id]["name"] == "Second WS"
+    assert workspaces_by_id[ws2.id]["role"] == "admin"
+    assert workspaces_by_id[ws2.id]["member_count"] == 1
+    assert "created_at" in workspaces_by_id[ws2.id]
 
 
-def test_list_workspaces_returns_204_when_no_memberships(db_session, mock_user):
+def test_list_workspaces_returns_empty_list_when_no_memberships(db_session, mock_user):
     user = User(username="loner_user", email="loner@example.com", is_verified=True)
     db_session.add(user)
     db_session.commit()
@@ -1086,8 +1098,8 @@ def test_list_workspaces_returns_204_when_no_memberships(db_session, mock_user):
     mock_user.id = user.id
     response = client.get("/workspaces")
 
-    assert response.status_code == 204
-    assert response.content == b"" 
+    assert response.status_code == 200
+    assert response.json() == []
 
 def test_list_workspaces_excludes_other_users_workspaces(db_session, mock_user):
     user = User(username="me_user", email="me@example.com", is_verified=True)
@@ -1105,8 +1117,8 @@ def test_list_workspaces_excludes_other_users_workspaces(db_session, mock_user):
     mock_user.id = user.id
     response = client.get("/workspaces")
 
-    assert response.status_code == 204
-    assert response.content == b""
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 def test_list_workspaces_includes_correct_role_per_workspace(db_session, mock_user):
@@ -1136,6 +1148,16 @@ def test_list_workspaces_includes_correct_role_per_workspace(db_session, mock_us
     assert roles_by_name["Owned"] == "owner"
     assert roles_by_name["Admin Of"] == "admin"
     assert roles_by_name["Member Of"] == "member"
+
+    workspaces_by_name = {ws["name"]: ws for ws in body}
+
+    assert workspaces_by_name["Owned"]["member_count"] == 1
+    assert workspaces_by_name["Admin Of"]["member_count"] == 1
+    assert workspaces_by_name["Member Of"]["member_count"] == 1
+
+    assert "created_at" in workspaces_by_name["Owned"]
+    assert "created_at" in workspaces_by_name["Admin Of"]
+    assert "created_at" in workspaces_by_name["Member Of"]
 
 #List workspace members
 
@@ -2034,3 +2056,148 @@ def test_remove_member_cannot_remove_owner(db_session, mock_user):
     assert owner_membership is not None
     assert owner_membership.role == "owner"
 
+
+
+#AI Summary Generation Tests
+
+
+def test_generate_workspace_summary_success(db_session, mock_user):
+    owner = User(
+        username="owner",
+        email="owner@test.com",
+        is_verified=True,
+    )
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Workspace",
+        created_by=owner.id,
+        invite_code="abc",
+        invite_link="abc",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            role="owner",
+        )
+    )
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    with patch(
+        "routes.workspaces.generate_workspace_summary",
+        return_value="Workspace summary",
+    ):
+        response = client.post(
+            f"/workspaces/{workspace.id}/summary"
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "summary": "Workspace summary"
+    }
+
+
+def test_generate_workspace_summary_workspace_not_found(db_session, mock_user):
+    mock_user.id = 1
+
+    response = client.post(
+        "/workspaces/999999/summary"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Workspace not found"
+
+
+def test_generate_workspace_summary_forbidden_non_member(db_session, mock_user):
+    owner = User(
+        username="owner",
+        email="owner@test.com",
+        is_verified=True,
+    )
+
+    outsider = User(
+        username="outsider",
+        email="outsider@test.com",
+        is_verified=True,
+    )
+
+    db_session.add_all([owner, outsider])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Workspace",
+        created_by=owner.id,
+        invite_code="abc",
+        invite_link="abc",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            role="owner",
+        )
+    )
+    db_session.commit()
+
+    mock_user.id = outsider.id
+
+    response = client.post(
+        f"/workspaces/{workspace.id}/summary"
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "You are not a member of this workspace"
+
+
+def test_generate_workspace_summary_runtime_error(db_session, mock_user):
+    user = User(
+        username="summary_user",
+        email="summary@test.com",
+        is_verified=True,
+    )
+    db_session.add(user)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Summary Workspace",
+        created_by=user.id,
+        invite_code="summary123",
+        invite_link="summary-link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            user_id=user.id,
+            workspace_id=workspace.id,
+            role="owner",
+        )
+    )
+    db_session.commit()
+
+    mock_user.id = user.id
+
+    with patch(
+        "routes.workspaces.generate_workspace_summary",
+        side_effect=RuntimeError("Gemini API unavailable"),
+    ):
+        response = client.post(
+            f"/workspaces/{workspace.id}/summary"
+        )
+
+    assert response.status_code == 502
+    assert (
+        response.json()["detail"]
+        == "Failed to generate workspace summary"
+    )
