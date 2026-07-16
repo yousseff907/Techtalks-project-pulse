@@ -2191,5 +2191,5 @@ def test_generate_workspace_summary_runtime_error(db_session, mock_user, monkeyp
     )
 
     assert response.status_code == 502
-    assert response.json()["detail"] == "Gemini API unavailable"
+    assert response.json()["detail"] == "Failed to generate workspace summary"
 
