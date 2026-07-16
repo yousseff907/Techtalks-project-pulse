@@ -1654,7 +1654,7 @@ def test_get_workspace_data_type_filter(db_session, mock_user):
 def test_get_workspace_data_source_filter(db_session, mock_user):
     workspace = Workspace(
         name="Workspace",
-        created_by=mock_user.id,
+        created_by=1,
         invite_code="abc",
         invite_link="abc",
     )
@@ -1665,7 +1665,7 @@ def test_get_workspace_data_source_filter(db_session, mock_user):
     db_session.add(
         WorkspaceMember(
             workspace_id=workspace.id,
-            user_id=mock_user.id,
+            created_by=1,
             role="owner",
         )
     )
