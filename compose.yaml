@@ -66,6 +66,21 @@ services:
     command: celery -A celery_app beat --loglevel=info
     networks:
       - project-pulse
+  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    networks:
+      - project-pulse
+    depends_on:
+      - backend
 
 volumes:
   postgres:
