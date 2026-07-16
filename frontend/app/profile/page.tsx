@@ -21,7 +21,7 @@ interface UserProfile {
 }
 
 const usernameSchema = z.object({
-	username: z.string().min(1, "Username cannot be blank"),
+	username: z.string().trim().min(1, "Username cannot be blank"),
 });
 
 type UsernameFormData = z.infer<typeof usernameSchema>;
@@ -33,18 +33,7 @@ function authHeaders(token: string | null) {
 	};
 }
 
-const mockProfile: UserProfile = {
-	id: 1,
-	username: "Alex Morgan",
-	email: "alex@company.com",
-	is_verified: true,
-	created_at: "2026-06-22T14:30:00.000Z",
-};
-
 async function fetchProfile(token: string | null): Promise<UserProfile> {
-	// Temporary until backend integration
-	return Promise.resolve(mockProfile);
-	/*
 	const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/me`, {
 		method: "GET",
 		headers: authHeaders(token),
@@ -56,13 +45,9 @@ async function fetchProfile(token: string | null): Promise<UserProfile> {
 	}
 
 	return response.json();
-	*/
 }
 
 async function updateUsername(token: string | null, username: string) {
-	// Temporary until backend integration
-	return Promise.resolve({ id: mockProfile.id, username });
-	/*
 	const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/me`, {
 		method: "PATCH",
 		headers: authHeaders(token),
@@ -75,13 +60,9 @@ async function updateUsername(token: string | null, username: string) {
 	}
 
 	return response.json();
-	*/
 }
 
 async function deleteAccount(token: string | null) {
-	// Temporary until backend integration
-	return Promise.resolve({ message: "Account deleted successfully" });
-	/*
 	const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/me`, {
 		method: "DELETE",
 		headers: authHeaders(token),
@@ -93,7 +74,6 @@ async function deleteAccount(token: string | null) {
 	}
 
 	return response.json();
-	*/
 }
 
 export default function ProfilePage() {
@@ -111,7 +91,7 @@ export default function ProfilePage() {
 	} = useQuery({
 		queryKey: ["profile"],
 		queryFn: () => fetchProfile(accessToken),
-		// enabled: !!accessToken, // temporarily disabled for mock testing
+		enabled: !!accessToken,
 	});
 
 	const {
@@ -153,18 +133,17 @@ export default function ProfilePage() {
 		router.push("/sign-in");
 	};
 
-	// Temporarily disabled while using mock data, restore once backend is connected
-	// if (!accessToken) {
-	// 	return (
-	// 		<main className="mx-auto max-w-2xl p-8">
-	// 			<Card>
-	// 				<CardContent className="p-8">
-	// 					<p>You need to be signed in to view this page.</p>
-	// 				</CardContent>
-	// 			</Card>
-	// 		</main>
-	// 	);
-	// }
+	if (!accessToken) {
+		return (
+			<main className="mx-auto max-w-2xl p-8">
+				<Card>
+					<CardContent className="p-8">
+						<p>You need to be signed in to view this page.</p>
+					</CardContent>
+				</Card>
+			</main>
+		);
+	}
 
 	return (
 		<main className="mx-auto max-w-2xl space-y-6 p-8">
