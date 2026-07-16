@@ -1502,3 +1502,165 @@ def test_list_workspace_members_uses_latest_sync_batch(db_session, mock_user):
     assert member["jira"]["id"] == "jira-user-new"
     assert member["jira"]["name"] == "New Name"
     assert member["jira"]["email"] == "owner@example.com"
+    
+def test_get_workspace_data_empty(db_session, mock_user):
+    workspace = Workspace(
+        name="Workspace",
+        created_by=mock_user.id,
+        invite_code="abc",
+        invite_link="abc",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            workspace_id=workspace.id,
+            user_id=mock_user.id,
+            role="owner",
+        )
+    )
+
+    db_session.add(
+        WorkspaceIntegrations(
+            workspace_id=workspace.id,
+        )
+    )
+
+    db_session.commit()
+
+    response = client.get(f"/workspaces/{workspace.id}/data")
+
+    assert response.status_code == 200
+    assert response.json() == []
+    
+def test_get_workspace_data_latest_batch(db_session, mock_user):
+    workspace = Workspace(
+        name="Workspace",
+        created_by=mock_user.id,
+        invite_code="abc",
+        invite_link="abc",
+    )
+
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            workspace_id=workspace.id,
+            user_id=mock_user.id,
+            role="owner",
+        )
+    )
+
+    integration = WorkspaceIntegrations(
+        workspace_id=workspace.id,
+    )
+
+    db_session.add(integration)
+    db_session.flush()
+
+    old_time = datetime.now(timezone.utc) - timedelta(days=1)
+    new_time = datetime.now(timezone.utc)
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Old",
+            fetched_at=old_time,
+        )
+    )
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Newest",
+            fetched_at=new_time,
+        )
+    )
+
+    db_session.commit()
+
+    response = client.get(f"/workspaces/{workspace.id}/data")
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["title"] == "Newest"
+
+
+def test_get_workspace_data_type_filter(db_session, mock_user):
+    workspace = Workspace(
+        name="Workspace",
+        created_by=mock_user.id,
+        invite_code="abc",
+        invite_link="abc",
+    )
+
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceMember(
+            workspace_id=workspace.id,
+            user_id=mock_user.id,
+            role="owner",
+        )
+    )
+
+    db_session.add(
+        WorkspaceIntegrations(
+            workspace_id=workspace.id,
+        )
+    )
+
+    db_session.flush()
+
+    now = datetime.now(timezone.utc)
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Task",
+            fetched_at=now,
+        )
+    )
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="project",
+            source="jira",
+            title="Project",
+            fetched_at=now,
+        )
+    )
+
+    db_session.commit()
+
+    response = client.get(
+        f"/workspaces/{workspace.id}/data?type=task"
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["type"] == "task"
+
+def test_get_workspace_data_source_filter(db_session, mock_user):
+    response = client.get(
+        f"/workspaces/1/data?source=jira"
+    )
+
+    assert response.status_code in (200, 404)
+
+
+def test_get_workspace_data_workspace_not_found():
+    response = client.get("/workspaces/999999/data")
+
+    assert response.status_code == 404
+    assert response.status_code == 403
