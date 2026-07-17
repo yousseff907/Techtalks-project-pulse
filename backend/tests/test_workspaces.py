@@ -1,25 +1,23 @@
-import itertools
-
 import pytest
+
+from datetime import datetime, timedelta, timezone
+import itertools
 from unittest.mock import MagicMock, Mock, patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
-from requests import Session
+from sqlalchemy.orm import Session
 
 from app import app
 
-from utils.database import get_db
-from utils.dependencies import get_current_user
-
 from models.user import User
 from models.workspace import Workspace
-from models.workspace_member import WorkspaceMember
-from models.workspace_integration import WorkspaceIntegrations
 from models.workspace_data import WorkspaceData
+from models.workspace_integration import WorkspaceIntegrations
+from models.workspace_member import WorkspaceMember
 
-from datetime import datetime, timedelta, timezone
-
+from utils.database import get_db
+from utils.dependencies import get_current_user
 
 client = TestClient(app)
 
