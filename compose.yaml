@@ -82,6 +82,17 @@ services:
     depends_on:
       - backend
 
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - project-pulse
+
 volumes:
   postgres:
     # driver: local
