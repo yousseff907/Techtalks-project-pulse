@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -41,65 +42,7 @@ function authHeaders(token: string | null) {
 	};
 }
 
-// Mock data, temporary until backend integration
-const mockWorkspaces: Workspace[] = [
-	{
-		id: 1,
-		name: "Project Pulse",
-		role: "owner",
-		member_count: 12,
-		created_at: "2026-06-22T14:30:00Z",
-	},
-	{
-		id: 2,
-		name: "Development",
-		role: "admin",
-		member_count: 6,
-		created_at: "2026-07-04T14:23:00Z",
-	},
-	{
-		id: 3,
-		name: "Marketing",
-		role: "member",
-		member_count: 4,
-		created_at: "2026-02-21T19:10:00Z",
-	},
-];
-
-const mockWorkspaceDetails: Record<number, WorkspaceDetails> = {
-	1: {
-		id: 1,
-		name: "Project Pulse",
-		invite_code: "mock-code-abc123",
-		invite_link: "https://projectpulse.app/mock-code-abc123",
-		created_by: "Alex Morgan",
-		created_at: "2026-06-22T14:30:00Z",
-		member_count: 12,
-	},
-	2: {
-		id: 2,
-		name: "Development",
-		invite_code: "mock-code-def456",
-		invite_link: "https://projectpulse.app/mock-code-def456",
-		created_by: "Alex Morgan",
-		created_at: "2026-07-04T14:23:00Z",
-		member_count: 6,
-	},
-	3: {
-		id: 3,
-		name: "Marketing",
-		invite_code: "mock-code-ghi789",
-		invite_link: "https://projectpulse.app/mock-code-ghi789",
-		created_by: "Sarah Chen",
-		created_at: "2026-02-21T19:10:00Z",
-		member_count: 4,
-	},
-};
-
 async function fetchWorkspaces(token: string | null): Promise<Workspace[]> {
-	// Temporary until backend integration
-	return Promise.resolve(mockWorkspaces);
-	/*
 	const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/workspaces`, {
 		method: "GET",
 		headers: authHeaders(token),
@@ -111,16 +54,12 @@ async function fetchWorkspaces(token: string | null): Promise<Workspace[]> {
 	}
 
 	return response.json();
-	*/
 }
 
 async function fetchWorkspaceDetails(
 	token: string | null,
 	workspaceId: number
 ): Promise<WorkspaceDetails> {
-	// Temporary until backend integration
-	return Promise.resolve(mockWorkspaceDetails[workspaceId]);
-	/*
 	const response = await fetch(
 		`${process.env.NEXT_PUBLIC_API_URL}/workspaces/${workspaceId}`,
 		{
@@ -135,13 +74,9 @@ async function fetchWorkspaceDetails(
 	}
 
 	return response.json();
-	*/
 }
 
 async function renameWorkspace(token: string | null, workspaceId: number, name: string) {
-	// Temporary until backend integration
-	return Promise.resolve({ workspace_id: workspaceId, name });
-	/*
 	const response = await fetch(
 		`${process.env.NEXT_PUBLIC_API_URL}/workspaces/${workspaceId}`,
 		{
@@ -157,17 +92,9 @@ async function renameWorkspace(token: string | null, workspaceId: number, name: 
 	}
 
 	return response.json();
-	*/
 }
 
 async function regenerateInviteCode(token: string | null, workspaceId: number) {
-	// Temporary until backend integration
-	return Promise.resolve({
-		workspace_id: workspaceId,
-		invite_code: "mock-code-new" + Math.floor(Math.random() * 1000),
-		invite_link: "https://projectpulse.app/mock-code-new" + Math.floor(Math.random() * 1000),
-	});
-	/*
 	const response = await fetch(
 		`${process.env.NEXT_PUBLIC_API_URL}/workspaces/${workspaceId}/invite-code`,
 		{
@@ -182,13 +109,9 @@ async function regenerateInviteCode(token: string | null, workspaceId: number) {
 	}
 
 	return response.json();
-	*/
 }
 
 async function deleteWorkspace(token: string | null, workspaceId: number) {
-	// Temporary until backend integration
-	return Promise.resolve({ message: "Workspace deleted successfully" });
-	/*
 	const response = await fetch(
 		`${process.env.NEXT_PUBLIC_API_URL}/workspaces/${workspaceId}`,
 		{
@@ -203,13 +126,9 @@ async function deleteWorkspace(token: string | null, workspaceId: number) {
 	}
 
 	return response.json();
-	*/
 }
 
 async function leaveWorkspace(token: string | null, workspaceId: number) {
-	// Temporary until backend integration
-	return Promise.resolve({ message: "Successfully left the workspace" });
-	/*
 	const response = await fetch(
 		`${process.env.NEXT_PUBLIC_API_URL}/workspaces/${workspaceId}/leave`,
 		{
@@ -224,7 +143,6 @@ async function leaveWorkspace(token: string | null, workspaceId: number) {
 	}
 
 	return response.json();
-	*/
 }
 
 const renameSchema = z.object({
@@ -267,9 +185,6 @@ function Modal({
 		</div>
 	);
 }
-
-import { useRef } from "react";
-import { createPortal } from "react-dom";
 
 function WorkspaceActionsMenu({
 	workspace,
@@ -390,12 +305,9 @@ export default function WorkspacesPage() {
 	} = useQuery({
 		queryKey: ["workspaces"],
 		queryFn: () => fetchWorkspaces(accessToken),
-
-		// Restore when backend is connected.
-		// enabled: !!accessToken,
+		enabled: !!accessToken,
 	});
 
-	/*
 	if (!accessToken) {
 		return (
 			<main className="mx-auto max-w-3xl p-8">
@@ -407,7 +319,6 @@ export default function WorkspacesPage() {
 			</main>
 		);
 	}
-	*/
 
 	return (
 		<main className="mx-auto max-w-3xl space-y-6 p-8">
