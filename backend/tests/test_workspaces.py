@@ -1,28 +1,33 @@
 import itertools
-from readline import backend
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
-from sqlalchemy.exc import IntegrityError
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError
+from requests import Session
+
+from app import app
+
 from utils.database import get_db
 from utils.dependencies import get_current_user
+
 from models.user import User
 from models.workspace import Workspace
 from models.workspace_member import WorkspaceMember
 from models.workspace_integration import WorkspaceIntegrations
 from models.workspace_data import WorkspaceData
+
 from datetime import datetime, timedelta, timezone
 
 
-client = TestClient(backend.app)
+client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
 def clear_overrides():
     yield
-    backend.app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
 
 _test_user_counter = itertools.count(1)
@@ -68,7 +73,7 @@ def create_workspace(db_session, user):
     db_session.flush()
 
     return workspace
-def	test_workspace_creation(db_session, mock_user):
+def	test_workspace_creation(db_session: Session, mock_user: Mock):
      
     user = User(username="test_user", email="test_user@example.com", is_verified=True)
     db_session.add(user)
@@ -138,12 +143,12 @@ def make_mock_db(workspace=None, existing_member=None, workspace_count=0):
 
 
 def override_dependencies(mock_user, mock_db):
-    backend.app.dependency_overrides[get_current_user] = lambda: mock_user
-    backend.app.dependency_overrides[get_db] = lambda: mock_db
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides[get_db] = lambda: mock_db
 
 
 def clear_dependencies():
-    backend.app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
 
 def test_join_workspace_success():
@@ -240,7 +245,7 @@ def test_join_workspace_new_member_row_is_created():
 
 #Leave workspace tests
 
-def test_leave_workspace_as_member_success(db_session, mock_user):
+def test_leave_workspace_as_member_success(db_session: Session, mock_user: Mock):
     owner = User(username="ws_owner", email="owner@example.com", is_verified=True)
     member_user = User(username="ws_member", email="member@example.com", is_verified=True)
     db_session.add(owner)
@@ -266,7 +271,7 @@ def test_leave_workspace_as_member_success(db_session, mock_user):
     assert workspace_record is not None
 
 
-def test_leave_workspace_as_owner_transfers_successfully(db_session, mock_user):
+def test_leave_workspace_as_owner_transfers_successfully(db_session: Session, mock_user: Mock):
     owner = User(username="ws_owner2", email="owner2@example.com", is_verified=True)
     admin_user = User(username="ws_admin", email="admin@example.com", is_verified=True)
     db_session.add(owner)
@@ -295,7 +300,7 @@ def test_leave_workspace_as_owner_transfers_successfully(db_session, mock_user):
     assert owner_membership is None
 
 
-def test_leave_workspace_as_owner_fails_without_admin(db_session, mock_user):
+def test_leave_workspace_as_owner_fails_without_admin(db_session: Session, mock_user: Mock):
     owner = User(username="ws_owner3", email="owner3@example.com", is_verified=True)
     regular_member = User(username="stranded_member", email="stranded@example.com", is_verified=True)
     db_session.add_all([owner, regular_member])
@@ -315,14 +320,14 @@ def test_leave_workspace_as_owner_fails_without_admin(db_session, mock_user):
     assert response.status_code == 400
     assert "Please promote a member to admin" in response.json()["detail"]
 
-def test_leave_workspace_not_found(db_session, mock_user):
+def test_leave_workspace_not_found(db_session: Session, mock_user: Mock):
     mock_user.id = 1
     response = client.delete("/workspaces/9999/leave")
     assert response.status_code == 404
     assert response.json()["detail"] == "Workspace not found"
 
 
-def test_leave_workspace_not_a_member(db_session, mock_user):
+def test_leave_workspace_not_a_member(db_session: Session, mock_user: Mock):
     owner = User(username="ws_owner", email="owner@example.com", is_verified=True)
     non_member = User(username="non_member", email="nonmember@example.com", is_verified=True)
     db_session.add(owner)
@@ -345,7 +350,7 @@ def test_leave_workspace_not_a_member(db_session, mock_user):
 
 # Update Workspace Name tests
 
-def test_update_workspace_name_success_as_owner(db_session, mock_user):
+def test_update_workspace_name_success_as_owner(db_session: Session, mock_user: Mock):
     owner = User(username="rename_owner", email="rename_owner@example.com", is_verified=True)
     db_session.add(owner)
     db_session.flush()
@@ -367,7 +372,7 @@ def test_update_workspace_name_success_as_owner(db_session, mock_user):
     assert workspace.name == "New Name"
 
 
-def test_update_workspace_name_success_as_admin(db_session, mock_user):
+def test_update_workspace_name_success_as_admin(db_session: Session, mock_user: Mock):
     owner = User(username="rename_owner2", email="rename_owner2@example.com", is_verified=True)
     admin_user = User(username="rename_admin", email="rename_admin@example.com", is_verified=True)
     db_session.add_all([owner, admin_user])
@@ -388,7 +393,7 @@ def test_update_workspace_name_success_as_admin(db_session, mock_user):
     assert response.json() == {"workspace_id": workspace.id, "name": "Admin Renamed"}
 
 
-def test_update_workspace_name_forbidden_for_regular_member(db_session, mock_user):
+def test_update_workspace_name_forbidden_for_regular_member(db_session: Session, mock_user: Mock):
     owner = User(username="rename_owner3", email="rename_owner3@example.com", is_verified=True)
     member_user = User(username="rename_member", email="rename_member@example.com", is_verified=True)
     db_session.add_all([owner, member_user])
@@ -412,7 +417,7 @@ def test_update_workspace_name_forbidden_for_regular_member(db_session, mock_use
     assert workspace.name == "Old Name"
 
 
-def test_update_workspace_name_not_found(db_session, mock_user):
+def test_update_workspace_name_not_found(db_session: Session, mock_user: Mock):
     mock_user.id = 1
     response = client.patch("/workspaces/9999", json={"name": "Doesn't Matter"})
 
@@ -420,7 +425,7 @@ def test_update_workspace_name_not_found(db_session, mock_user):
     assert response.json()["detail"] == "Workspace not found"
 
 
-def test_update_workspace_name_not_a_member(db_session, mock_user):
+def test_update_workspace_name_not_a_member(db_session: Session, mock_user: Mock):
     owner = User(username="rename_owner4", email="rename_owner4@example.com", is_verified=True)
     non_member = User(username="rename_stranger", email="rename_stranger@example.com", is_verified=True)
     db_session.add_all([owner, non_member])
@@ -440,7 +445,7 @@ def test_update_workspace_name_not_a_member(db_session, mock_user):
     assert response.json()["detail"] == "You are not a member of this workspace"
 
 
-def test_update_workspace_name_dangerous_input(db_session, mock_user):
+def test_update_workspace_name_dangerous_input(db_session: Session, mock_user: Mock):
     owner = User(username="rename_owner5", email="rename_owner5@example.com", is_verified=True)
     db_session.add(owner)
     db_session.flush()
@@ -466,7 +471,7 @@ def test_update_workspace_name_dangerous_input(db_session, mock_user):
     assert response.json()["detail"] == "Name cannot be blank"
 
 
-def test_update_workspace_name_strips_whitespace(db_session, mock_user):
+def test_update_workspace_name_strips_whitespace(db_session: Session, mock_user: Mock):
     owner = User(username="rename_owner6", email="rename_owner6@example.com", is_verified=True)
     db_session.add(owner)
     db_session.flush()
@@ -488,7 +493,7 @@ def test_update_workspace_name_strips_whitespace(db_session, mock_user):
     assert workspace.name == "Padded Name"
 
 
-def test_leave_workspace_owner_sole_member_deletes_workspace(db_session, mock_user):
+def test_leave_workspace_owner_sole_member_deletes_workspace(db_session: Session, mock_user: Mock):
     from models.workspace_integration import WorkspaceIntegrations
 
     owner = User(username="solo_owner", email="solo@example.com", is_verified=True)
@@ -518,7 +523,7 @@ def test_leave_workspace_owner_sole_member_deletes_workspace(db_session, mock_us
 
 #Delete workspace tests
 
-def test_delete_workspace_success(db_session, mock_user):
+def test_delete_workspace_success(db_session: Session, mock_user: Mock):
     
 
     owner = User(username="del_owner", email="del_owner@example.com", is_verified=True)
@@ -550,7 +555,7 @@ def test_delete_workspace_success(db_session, mock_user):
     
 
 
-def test_delete_workspace_forbidden_for_member(db_session, mock_user):
+def test_delete_workspace_forbidden_for_member(db_session: Session, mock_user: Mock):
     owner = User(username="del_owner2", email="del_owner2@example.com", is_verified=True)
     member_user = User(username="del_member", email="del_member@example.com", is_verified=True)
     db_session.add_all([owner, member_user])
@@ -572,7 +577,7 @@ def test_delete_workspace_forbidden_for_member(db_session, mock_user):
     assert db_session.query(Workspace).filter(Workspace.id == workspace.id).first() is not None
 
 
-def test_delete_workspace_not_found(db_session, mock_user):
+def test_delete_workspace_not_found(db_session: Session, mock_user: Mock):
     mock_user.id = 1
     response = client.delete("/workspaces/9999")
     assert response.status_code == 404
@@ -581,7 +586,7 @@ def test_delete_workspace_not_found(db_session, mock_user):
 
 #Generate invite code tests
 
-def test_rotate_invite_code_success_as_owner(db_session, mock_user):
+def test_rotate_invite_code_success_as_owner(db_session: Session, mock_user: Mock):
     owner = User(username="rot_owner", email="rot_owner@example.com", is_verified=True)
     db_session.add(owner)
     db_session.flush()
@@ -607,7 +612,7 @@ def test_rotate_invite_code_success_as_owner(db_session, mock_user):
     assert workspace.invite_code == data["invite_code"]
 
 
-def test_rotate_invite_code_success_as_admin(db_session, mock_user):
+def test_rotate_invite_code_success_as_admin(db_session: Session, mock_user: Mock):
     owner = User(username="rot_owner2", email="rot_owner2@example.com", is_verified=True)
     admin_user = User(username="rot_admin", email="rot_admin@example.com", is_verified=True)
     db_session.add_all([owner, admin_user])
@@ -626,7 +631,7 @@ def test_rotate_invite_code_success_as_admin(db_session, mock_user):
     assert response.status_code == 200
 
 
-def test_rotate_invite_code_forbidden_for_regular_member(db_session, mock_user):
+def test_rotate_invite_code_forbidden_for_regular_member(db_session: Session, mock_user: Mock):
     owner = User(username="rot_owner3", email="rot_owner3@example.com", is_verified=True)
     member_user = User(username="rot_member", email="rot_member@example.com", is_verified=True)
     db_session.add_all([owner, member_user])
@@ -647,7 +652,7 @@ def test_rotate_invite_code_forbidden_for_regular_member(db_session, mock_user):
     assert "Only workspace owners or admins" in response.json()["detail"]
 
 
-def test_rotate_invite_code_not_found(db_session, mock_user):
+def test_rotate_invite_code_not_found(db_session: Session, mock_user: Mock):
     mock_user.id = 1
     response = client.patch("/workspaces/9999/invite-code")
     assert response.status_code == 404
@@ -691,7 +696,7 @@ def test_rotate_invite_code_collision_handling():
 
 # Get Workspace Details tests
 
-def test_get_workspace_details_success_as_owner(db_session, mock_user):
+def test_get_workspace_details_success_as_owner(db_session: Session, mock_user: Mock):
 	owner = User(username="details_owner", email="details_owner@example.com", is_verified=True)
 	db_session.add(owner)
 	db_session.flush()
@@ -717,7 +722,7 @@ def test_get_workspace_details_success_as_owner(db_session, mock_user):
 	assert body["created_at"] is not None
 
 
-def test_get_workspace_details_success_as_regular_member(db_session, mock_user):
+def test_get_workspace_details_success_as_regular_member(db_session: Session, mock_user: Mock):
 	owner = User(username="details_owner2", email="details_owner2@example.com", is_verified=True)
 	member_user = User(username="details_member", email="details_member@example.com", is_verified=True)
 	db_session.add_all([owner, member_user])
@@ -740,7 +745,7 @@ def test_get_workspace_details_success_as_regular_member(db_session, mock_user):
 	assert body["member_count"] == 2
 
 
-def test_get_workspace_details_not_found(db_session, mock_user):
+def test_get_workspace_details_not_found(db_session: Session, mock_user: Mock):
 	mock_user.id = 1
 	response = client.get("/workspaces/9999")
 
@@ -748,7 +753,7 @@ def test_get_workspace_details_not_found(db_session, mock_user):
 	assert response.json()["detail"] == "Workspace not found"
 
 
-def test_get_workspace_details_not_found_before_membership_check(db_session, mock_user):
+def test_get_workspace_details_not_found_before_membership_check(db_session: Session, mock_user: Mock):
 	# Confirms a non-existent workspace returns 404, not 403, even though
 	# no membership row could possibly exist for it either.
 	mock_user.id = 1
@@ -758,7 +763,7 @@ def test_get_workspace_details_not_found_before_membership_check(db_session, moc
 	assert response.json()["detail"] == "Workspace not found"
 
 
-def test_get_workspace_details_forbidden_for_non_member(db_session, mock_user):
+def test_get_workspace_details_forbidden_for_non_member(db_session: Session, mock_user: Mock):
 	owner = User(username="details_owner3", email="details_owner3@example.com", is_verified=True)
 	non_member = User(username="details_stranger", email="details_stranger@example.com", is_verified=True)
 	db_session.add_all([owner, non_member])
@@ -778,7 +783,7 @@ def test_get_workspace_details_forbidden_for_non_member(db_session, mock_user):
 	assert response.json()["detail"] == "You are not a member of this workspace"
 
 
-def test_get_workspace_details_member_count_accurate(db_session, mock_user):
+def test_get_workspace_details_member_count_accurate(db_session: Session, mock_user: Mock):
 	owner = User(username="details_owner4", email="details_owner4@example.com", is_verified=True)
 	member_a = User(username="details_member_a", email="details_member_a@example.com", is_verified=True)
 	member_b = User(username="details_member_b", email="details_member_b@example.com", is_verified=True)
@@ -801,7 +806,7 @@ def test_get_workspace_details_member_count_accurate(db_session, mock_user):
 	assert response.json()["member_count"] == 3
 
 
-def test_get_workspace_details_created_by_deleted_user(db_session, mock_user):
+def test_get_workspace_details_created_by_deleted_user(db_session: Session, mock_user: Mock):
 	owner = User(username="details_owner5", email="details_owner5@example.com", is_verified=True)
 	member_user = User(username="details_member5", email="details_member5@example.com", is_verified=True)
 	db_session.add_all([owner, member_user])
@@ -827,7 +832,7 @@ def test_get_workspace_details_created_by_deleted_user(db_session, mock_user):
 
 # Get Sync Status tests
 
-def test_get_sync_status_success(db_session, mock_user):
+def test_get_sync_status_success(db_session: Session, mock_user: Mock):
 	owner = User(username="sync_status_owner", email="sync_status_owner@example.com", is_verified=True)
 	db_session.add(owner)
 	db_session.flush()
@@ -848,7 +853,7 @@ def test_get_sync_status_success(db_session, mock_user):
 	assert response.json()["last_synced_at"] is None
 
 
-def test_get_sync_status_reflects_updated_timestamp(db_session, mock_user):
+def test_get_sync_status_reflects_updated_timestamp(db_session: Session, mock_user: Mock):
 	owner = User(username="sync_status_owner2", email="sync_status_owner2@example.com", is_verified=True)
 	db_session.add(owner)
 	db_session.flush()
@@ -873,7 +878,7 @@ def test_get_sync_status_reflects_updated_timestamp(db_session, mock_user):
 	assert response.json()["last_synced_at"] is not None
 
 
-def test_get_sync_status_workspace_not_found(db_session, mock_user):
+def test_get_sync_status_workspace_not_found(db_session: Session, mock_user: Mock):
 	mock_user.id = 1
 	response = client.get("/workspaces/9999/sync/status")
 
@@ -881,7 +886,7 @@ def test_get_sync_status_workspace_not_found(db_session, mock_user):
 	assert response.json()["detail"] == "Workspace not found"
 
 
-def test_get_sync_status_forbidden_for_non_member(db_session, mock_user):
+def test_get_sync_status_forbidden_for_non_member(db_session: Session, mock_user: Mock):
 	owner = User(username="sync_status_owner3", email="sync_status_owner3@example.com", is_verified=True)
 	non_member = User(username="sync_status_stranger", email="sync_status_stranger@example.com", is_verified=True)
 	db_session.add_all([owner, non_member])
@@ -902,7 +907,7 @@ def test_get_sync_status_forbidden_for_non_member(db_session, mock_user):
 	assert response.json()["detail"] == "You are not a member of this workspace"
 
 
-def test_get_sync_status_no_integration(db_session, mock_user):
+def test_get_sync_status_no_integration(db_session: Session, mock_user: Mock):
 	owner = User(username="sync_status_owner4", email="sync_status_owner4@example.com", is_verified=True)
 	db_session.add(owner)
 	db_session.flush()
@@ -922,7 +927,7 @@ def test_get_sync_status_no_integration(db_session, mock_user):
 
 # Manual Sync tests
 
-def test_manual_sync_success_as_owner(db_session, mock_user, mock_redis_client):
+def test_manual_sync_success_as_owner(db_session: Session, mock_user: Mock, mock_redis_client: MagicMock):
 	owner = User(username="manual_sync_owner", email="manual_sync_owner@example.com", is_verified=True)
 	db_session.add(owner)
 	db_session.flush()
@@ -952,7 +957,7 @@ def test_manual_sync_success_as_owner(db_session, mock_user, mock_redis_client):
 	mock_redis_client.setex.assert_called_once_with(f"sync_cooldown:{workspace.id}", 300, "1")
 
 
-def test_manual_sync_success_as_admin(db_session, mock_user, mock_redis_client):
+def test_manual_sync_success_as_admin(db_session: Session, mock_user: Mock, mock_redis_client: MagicMock):
 	owner = User(username="manual_sync_owner2", email="manual_sync_owner2@example.com", is_verified=True)
 	admin_user = User(username="manual_sync_admin", email="manual_sync_admin@example.com", is_verified=True)
 	db_session.add_all([owner, admin_user])
@@ -980,7 +985,7 @@ def test_manual_sync_success_as_admin(db_session, mock_user, mock_redis_client):
 	assert response.status_code == 202
 
 
-def test_manual_sync_forbidden_for_regular_member(db_session, mock_user, mock_redis_client):
+def test_manual_sync_forbidden_for_regular_member(db_session: Session, mock_user: Mock, mock_redis_client: MagicMock):
 	owner = User(username="manual_sync_owner3", email="manual_sync_owner3@example.com", is_verified=True)
 	member_user = User(username="manual_sync_member", email="manual_sync_member@example.com", is_verified=True)
 	db_session.add_all([owner, member_user])
@@ -1004,7 +1009,7 @@ def test_manual_sync_forbidden_for_regular_member(db_session, mock_user, mock_re
 	mock_sync_task.delay.assert_not_called()
 
 
-def test_manual_sync_workspace_not_found(db_session, mock_user):
+def test_manual_sync_workspace_not_found(db_session: Session, mock_user: Mock):
 	mock_user.id = 1
 	response = client.post("/workspaces/9999/sync")
 
@@ -1012,7 +1017,7 @@ def test_manual_sync_workspace_not_found(db_session, mock_user):
 	assert response.json()["detail"] == "Workspace not found"
 
 
-def test_manual_sync_not_a_member(db_session, mock_user):
+def test_manual_sync_not_a_member(db_session: Session, mock_user: Mock):
 	owner = User(username="manual_sync_owner4", email="manual_sync_owner4@example.com", is_verified=True)
 	non_member = User(username="manual_sync_stranger", email="manual_sync_stranger@example.com", is_verified=True)
 	db_session.add_all([owner, non_member])
@@ -1033,7 +1038,7 @@ def test_manual_sync_not_a_member(db_session, mock_user):
 	assert response.json()["detail"] == "You are not a member of this workspace"
 
 
-def test_manual_sync_no_integration(db_session, mock_user):
+def test_manual_sync_no_integration(db_session: Session, mock_user: Mock):
 	owner = User(username="manual_sync_owner5", email="manual_sync_owner5@example.com", is_verified=True)
 	db_session.add(owner)
 	db_session.flush()
@@ -1051,7 +1056,7 @@ def test_manual_sync_no_integration(db_session, mock_user):
 	assert response.status_code == 404
 
 
-def test_manual_sync_cooldown_active_returns_429(db_session, mock_user, mock_redis_client):
+def test_manual_sync_cooldown_active_returns_429(db_session: Session, mock_user: Mock, mock_redis_client: MagicMock):
 	owner = User(username="manual_sync_owner6", email="manual_sync_owner6@example.com", is_verified=True)
 	db_session.add(owner)
 	db_session.flush()
@@ -1076,7 +1081,7 @@ def test_manual_sync_cooldown_active_returns_429(db_session, mock_user, mock_red
 	mock_redis_client.setex.assert_not_called()
 
 
-def test_manual_sync_checks_correct_cooldown_key(db_session, mock_user, mock_redis_client):
+def test_manual_sync_checks_correct_cooldown_key(db_session: Session, mock_user: Mock, mock_redis_client: MagicMock):
 	owner = User(username="manual_sync_owner7", email="manual_sync_owner7@example.com", is_verified=True)
 	db_session.add(owner)
 	db_session.flush()
@@ -1102,7 +1107,7 @@ def test_manual_sync_checks_correct_cooldown_key(db_session, mock_user, mock_red
      
 # ---- List workspaces tests ----
 
-def test_list_workspaces_returns_user_workspaces(db_session, mock_user):
+def test_list_workspaces_returns_user_workspaces(db_session: Session, mock_user: Mock):
     user = User(username="list_user", email="list_user@example.com", is_verified=True)
     other_owner = User(username="other_owner", email="other@example.com", is_verified=True)
     db_session.add_all([user, other_owner])
@@ -1142,7 +1147,7 @@ def test_list_workspaces_returns_user_workspaces(db_session, mock_user):
     assert "created_at" in workspaces_by_id[ws2.id]
 
 
-def test_list_workspaces_returns_empty_list_when_no_memberships(db_session, mock_user):
+def test_list_workspaces_returns_empty_list_when_no_memberships(db_session: Session, mock_user: Mock):
     user = User(username="loner_user", email="loner@example.com", is_verified=True)
     db_session.add(user)
     db_session.commit()
@@ -1153,7 +1158,7 @@ def test_list_workspaces_returns_empty_list_when_no_memberships(db_session, mock
     assert response.status_code == 200
     assert response.json() == []
 
-def test_list_workspaces_excludes_other_users_workspaces(db_session, mock_user):
+def test_list_workspaces_excludes_other_users_workspaces(db_session: Session, mock_user: Mock):
     user = User(username="me_user", email="me@example.com", is_verified=True)
     stranger = User(username="stranger", email="stranger@example.com", is_verified=True)
     db_session.add_all([user, stranger])
@@ -1173,7 +1178,7 @@ def test_list_workspaces_excludes_other_users_workspaces(db_session, mock_user):
     assert response.json() == []
 
 
-def test_list_workspaces_includes_correct_role_per_workspace(db_session, mock_user):
+def test_list_workspaces_includes_correct_role_per_workspace(db_session: Session, mock_user: Mock):
     user = User(username="multi_role_user", email="multi@example.com", is_verified=True)
     other = User(username="other_multi", email="other_multi@example.com", is_verified=True)
     db_session.add_all([user, other])
@@ -1213,7 +1218,7 @@ def test_list_workspaces_includes_correct_role_per_workspace(db_session, mock_us
 
 #List workspace members
 
-def test_list_workspace_members_success(db_session, mock_user):
+def test_list_workspace_members_success(db_session: Session, mock_user: Mock):
     owner = User(username="owner", email="owner@example.com", is_verified=True)
     member = User(username="member", email="member@example.com", is_verified=True)
     db_session.add_all([owner, member])
@@ -1282,7 +1287,7 @@ def test_list_workspace_members_success(db_session, mock_user):
     assert member_entry["notion"]["id"] == "notion-member"
 
 
-def test_list_workspace_members_username_fallback(db_session, mock_user):
+def test_list_workspace_members_username_fallback(db_session: Session, mock_user: Mock):
     user = User(
         username="fallbackuser",
         email="platform@example.com",
@@ -1342,7 +1347,7 @@ def test_list_workspace_members_username_fallback(db_session, mock_user):
     assert body[0]["jira"]["id"] == "jira1"
 
 
-def test_list_workspace_members_email_precedence_over_username(db_session, mock_user):
+def test_list_workspace_members_email_precedence_over_username(db_session: Session, mock_user: Mock):
     user = User(
         username="john",
         email="john@example.com",
@@ -1409,7 +1414,7 @@ def test_list_workspace_members_email_precedence_over_username(db_session, mock_
     assert response.json()[0]["jira"]["id"] == "email-match"
 
 
-def test_list_workspace_members_returns_null_when_no_synced_users(db_session, mock_user):
+def test_list_workspace_members_returns_null_when_no_synced_users(db_session: Session, mock_user: Mock):
     owner = User(
         username="owner",
         email="owner@example.com",
@@ -1449,7 +1454,7 @@ def test_list_workspace_members_returns_null_when_no_synced_users(db_session, mo
     assert member["jira"] is None
     assert member["notion"] is None
 
-def test_list_workspace_members_workspace_not_found(db_session, mock_user):
+def test_list_workspace_members_workspace_not_found(db_session: Session, mock_user: Mock):
     mock_user.id = 1
 
     response = client.get("/workspaces/9999/members")
@@ -1457,7 +1462,7 @@ def test_list_workspace_members_workspace_not_found(db_session, mock_user):
     assert response.status_code == 404
     assert response.json()["detail"] == "Workspace not found"
 
-def test_list_workspace_members_forbidden_for_non_member(db_session, mock_user):
+def test_list_workspace_members_forbidden_for_non_member(db_session: Session, mock_user: Mock):
     owner = User(
         username="owner",
         email="owner@example.com",
@@ -1499,7 +1504,7 @@ def test_list_workspace_members_forbidden_for_non_member(db_session, mock_user):
     assert response.status_code == 403
     assert response.json()["detail"] == "You are not a member of this workspace"
 
-def test_list_workspace_members_uses_latest_sync_batch(db_session, mock_user):
+def test_list_workspace_members_uses_latest_sync_batch(db_session: Session, mock_user: Mock):
     owner = User(
         username="owner",
         email="owner@example.com",
@@ -1577,11 +1582,11 @@ def test_list_workspace_members_uses_latest_sync_batch(db_session, mock_user):
     assert member["jira"]["name"] == "New Name"
     assert member["jira"]["email"] == "owner@example.com"
     
-def test_get_workspace_data_empty(db_session):
+def test_get_workspace_data_empty(db_session: Session):
 
     user = create_test_user(db_session)
 
-    backend.app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_current_user] = lambda: user
 
     workspace = create_workspace(
         db_session,
@@ -1595,11 +1600,11 @@ def test_get_workspace_data_empty(db_session):
     assert response.status_code == 200
     assert response.json() == []
     
-def test_get_workspace_data_latest_batch(db_session):
+def test_get_workspace_data_latest_batch(db_session: Session):
 
     user = create_test_user(db_session)
 
-    backend.app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_current_user] = lambda: user
 
     workspace = create_workspace(
         db_session,
@@ -1644,11 +1649,11 @@ def test_get_workspace_data_latest_batch(db_session):
     assert "New Task" in titles
     assert "Old Task" not in titles
 
-def test_get_workspace_data_type_filter(db_session):
+def test_get_workspace_data_type_filter(db_session: Session):
 
     user = create_test_user(db_session)
 
-    backend.app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_current_user] = lambda: user
 
     workspace = create_workspace(
         db_session,
@@ -1684,11 +1689,11 @@ def test_get_workspace_data_type_filter(db_session):
     assert len(response.json()) == 1
     assert response.json()[0]["type"] == "task"
     
-def test_get_workspace_data_source_filter(db_session):
+def test_get_workspace_data_source_filter(db_session: Session):
 
     user = create_test_user(db_session)
 
-    backend.app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_current_user] = lambda: user
 
     workspace = create_workspace(
         db_session,
@@ -1725,11 +1730,11 @@ def test_get_workspace_data_source_filter(db_session):
     assert response.json()[0]["source"] == "jira"
 
 
-def test_get_workspace_data_status_filter(db_session):
+def test_get_workspace_data_status_filter(db_session: Session):
 
     user = create_test_user(db_session)
 
-    backend.app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_current_user] = lambda: user
 
     workspace = create_workspace(
         db_session,
@@ -1768,11 +1773,11 @@ def test_get_workspace_data_status_filter(db_session):
     assert response.json()[0]["status"] == "DONE"
 
 
-def test_get_workspace_data_search(db_session):
+def test_get_workspace_data_search(db_session: Session):
 
     user = create_test_user(db_session)
 
-    backend.app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_current_user] = lambda: user
 
     workspace = create_workspace(
         db_session,
@@ -1808,11 +1813,11 @@ def test_get_workspace_data_search(db_session):
     assert len(response.json()) == 1
     assert response.json()[0]["title"] == "Backend Login"
 
-def test_get_workspace_data_combined_filters(db_session):
+def test_get_workspace_data_combined_filters(db_session: Session):
 
     user = create_test_user(db_session)
 
-    backend.app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_current_user] = lambda: user
 
     workspace = create_workspace(
         db_session,
@@ -1886,11 +1891,11 @@ def test_get_workspace_data_combined_filters(db_session):
     assert data[0]["source"] == "jira"
     assert data[0]["status"] == "DONE"
 
-def test_get_workspace_data_workspace_not_found(db_session):
+def test_get_workspace_data_workspace_not_found(db_session: Session):
 
     user = create_test_user(db_session)
 
-    backend.app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_current_user] = lambda: user
 
     response = client.get(
         "/workspaces/999999/data"
@@ -1899,11 +1904,11 @@ def test_get_workspace_data_workspace_not_found(db_session):
     assert response.status_code == 404
 
 
-def test_get_workspace_data_not_member(db_session):
+def test_get_workspace_data_not_member(db_session: Session):
 
     user = create_test_user(db_session)
 
-    backend.app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_current_user] = lambda: user
 
     other_user = create_test_user(db_session)
 
@@ -1928,7 +1933,7 @@ def test_get_workspace_data_not_member(db_session):
 #AI Summary Generation Tests
 
 
-def test_generate_workspace_summary_success(db_session, mock_user):
+def test_generate_workspace_summary_success(db_session: Session, mock_user: Mock):
     owner = User(
         username="owner",
         email="owner@test.com",
@@ -1971,7 +1976,7 @@ def test_generate_workspace_summary_success(db_session, mock_user):
     }
 
 
-def test_generate_workspace_summary_workspace_not_found(db_session, mock_user):
+def test_generate_workspace_summary_workspace_not_found(db_session: Session, mock_user: Mock):
     mock_user.id = 1
 
     response = client.post(
@@ -1982,7 +1987,7 @@ def test_generate_workspace_summary_workspace_not_found(db_session, mock_user):
     assert response.json()["detail"] == "Workspace not found"
 
 
-def test_generate_workspace_summary_forbidden_non_member(db_session, mock_user):
+def test_generate_workspace_summary_forbidden_non_member(db_session: Session, mock_user: Mock):
     owner = User(
         username="owner",
         email="owner@test.com",
@@ -2026,7 +2031,7 @@ def test_generate_workspace_summary_forbidden_non_member(db_session, mock_user):
     assert response.json()["detail"] == "You are not a member of this workspace"
 
 
-def test_generate_workspace_summary_runtime_error(db_session, mock_user):
+def test_generate_workspace_summary_runtime_error(db_session: Session, mock_user: Mock):
     user = User(
         username="summary_user",
         email="summary@test.com",
