@@ -43,62 +43,17 @@ function authHeaders(token: string | null) {
             : {}),
     };
 }
-//Mock
-const initialMockMembers: WorkspaceMember[] = [
-    {
-        id: 1,
-        username: "Alex",
-        email: "alex@test.com",
-        role: "owner",
-        jira: {
-            id: "1",
-            name: "Alex",
-            email: "alex@jira.com",
-        },
-        notion: {
-            id: "1",
-            name: "Alex",
-            email: "alex@notion.com",
-        },
-    },
-    {
-        id: 2,
-        username: "John",
-        email: "john@test.com",
-        role: "admin",
-        jira: null,
-        notion: {
-            id: "2",
-            name: "John",
-            email: "john@notion.com",
-        },
-    },
-    {
-        id: 3,
-        username: "Sarah",
-        email: "sarah@test.com",
-        role: "member",
-        jira: {
-            id: "3",
-            name: "Sarah",
-            email: "sarah@jira.com",
-        },
-        notion: null,
-    },
-];
+
 
 async function fetchWorkspaceMembers(
 	workspaceId: string,
     token: string | null,
 ): Promise<WorkspaceMember[]> {
-	// Temporary until backend integration
-    return Promise.resolve(initialMockMembers);
-
-    /*
+	
     const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/workspaces/${workspaceId}/members`,
         {
-            headers: authHeaders(accessToken),
+            headers: authHeaders(token),
         }
     );
 
@@ -112,7 +67,6 @@ async function fetchWorkspaceMembers(
     }
 
     return response.json();
-    */
 }
 
 async function fetchCurrentUser(
@@ -139,7 +93,7 @@ async function fetchCurrentUser(
 async function updateMemberRole(
     workspaceId: string,
     userId: number,
-    role: string,
+    role: "admin" | "member",
     token: string | null,
 ) {
     const response = await fetch(
@@ -182,6 +136,8 @@ async function removeMember(
             error.detail ?? "Failed to remove member"
         );
     }
+
+    return response.json();
 }
 
 
@@ -355,19 +311,7 @@ export default function MembersPage() {
     const [ascending, setAscending] = useState(true);
     
     const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
-    const [activeRoleMutationId, setActiveRoleMutationId] = useState<number | null>(null);
-    const [roleMutationErrorId, setRoleMutationErrorId] = useState<number | null>(null);
 
-
-    const [mockMembers, setMockMembers] = useState(initialMockMembers); //mock, remove later
-
-    const members = mockMembers;
-    const isLoading = false;
-    const isError = false;
-    const error = null;
-    
-    //Backend:
-    /*
 	const {
 		data: members = [],
 		isLoading,
@@ -376,11 +320,11 @@ export default function MembersPage() {
 	} = useQuery({
 		queryKey: ["workspace-members", workspaceId],
 		queryFn: () =>
-    fetchWorkspaceMembers(
-            workspaceId,
-            accessToken
-        ),
-    enabled: !!accessToken,
+        fetchWorkspaceMembers(
+                workspaceId,
+                accessToken
+            ),
+        enabled: !!accessToken,
 	});
 
     const { data: currentUser } = useQuery({
@@ -390,45 +334,19 @@ export default function MembersPage() {
     });
 
     const roleMutation = useMutation({
-        mutationFn: async ({
+        mutationFn: ({
             userId,
             role,
         }: {
             userId: number;
             role: "admin" | "member";
-        }) => {
-            const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/workspaces/${workspaceId}/members/${userId}`,
-                {
-                    method: "PATCH",
-                    headers: authHeaders(accessToken),
-                    body: JSON.stringify({ role }),
-                }
-            );
-
-            if (!response.ok) {
-                const error = await response.json();
-
-                throw new Error(
-                    error.detail ?? "Failed to update member role"
-                );
-            }
-
-            return response.json();
-        },
-
-        onMutate: ({ userId }) => {
-            setActiveRoleMutationId(userId);
-            setRoleMutationErrorId(null);
-        },
-
-        onError: (_error, variables) => {
-            setRoleMutationErrorId(variables.userId);
-        },
-
-        onSettled: () => {
-            setActiveRoleMutationId(null);
-        },
+        }) =>
+            updateMemberRole(
+                workspaceId,
+                userId,
+                role,
+                accessToken
+            ),
 
         onSuccess: () => {
             queryClient.invalidateQueries({
@@ -438,21 +356,12 @@ export default function MembersPage() {
     });
 
     const removeMutation = useMutation({
-        mutationFn: async (userId: number) => {
-            const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/workspaces/${workspaceId}/members/${userId}`,
-                {
-                    method: "DELETE",
-                }
-            );
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(
-                    error.detail ?? "Failed to remove member"
-                );
-            }
-        },
+        mutationFn: (userId: number) =>
+            removeMember(
+                workspaceId,
+                userId,
+                accessToken
+            ),
         onSuccess: () => {
             setConfirmRemoveId(null);
 
@@ -462,50 +371,7 @@ export default function MembersPage() {
         },
     });
 
-    */
-
-    // Temporary Mock
-    const currentUser = {
-        id: 1,
-        username: "Alex",
-        email: "alex@test.com",
-    };
-
-    // Temporary Mock
-    const viewerRole = "owner";
-
-    //Temporary Mock
-    const roleMutation = {
-        mutate: ({ userId, role }: { userId: number; role: string }) => {
-            setMockMembers((prev) =>
-                prev.map((member) =>
-                    member.id === userId
-                        ? { ...member, role }
-                        : member
-                )
-            );
-        },
-        isPending: false,
-        isError: false,
-        error: null as Error | null,
-    };
-
-    //Temporary Mock
-    const removeMutation = {
-        mutate: (userId: number) => {
-            setMockMembers((prev) =>
-                prev.filter((member) => member.id !== userId)
-            );
-
-            setConfirmRemoveId(null);
-        },
-        isPending: false,
-        isError: false,
-        error: null as Error | null,
-    };
-
     
-    //keep
 	const filteredMembers = useMemo(() => {
         const term = search.toLowerCase().trim();
 
@@ -533,11 +399,11 @@ export default function MembersPage() {
         });
     }, [members, search, sortBy, ascending]);
 
-    /*
+
     const viewerRole = members.find(
         (member) => member.id === currentUser?.id
     )?.role;
-    */
+
 
 	return (
 		<main className="mx-auto max-w-7xl p-8">
