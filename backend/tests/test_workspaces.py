@@ -4,8 +4,8 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from sqlalchemy.exc import IntegrityError
-from app import app
 from fastapi.testclient import TestClient
+from backend import app
 from utils.database import get_db
 from utils.dependencies import get_current_user
 from models.user import User

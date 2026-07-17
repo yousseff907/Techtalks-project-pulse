@@ -693,20 +693,6 @@ def get_workspace_data(
     source: Optional[str] = None,
     status: Optional[str] = None,
     search: Optional[str] = None,
-):
-    pass
-    
-
-
-# AI Summary Generation Endpoint
-
-@router.post("/workspaces/{workspace_id}/summary", status_code=200)
-def generate_summary(
-    workspace_id: int,
-    type: Optional[str] = None,
-    source: Optional[str] = None,
-    status: Optional[str] = None,
-    search: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -751,8 +737,7 @@ def generate_summary(
     latest_fetched_at = (
         db.query(func.max(WorkspaceData.fetched_at))
         .filter(
-            WorkspaceData.integration_id == integration.workspace_id
-        )
+           WorkspaceData.integration_id == integration.id        )
         .scalar()
     )
 
@@ -762,7 +747,7 @@ def generate_summary(
     query = (
         db.query(WorkspaceData)
         .filter(
-            WorkspaceData.integration_id == integration.workspace_id,
+            WorkspaceData.integration_id == integration.id,
             WorkspaceData.fetched_at == latest_fetched_at,
         )
     )
@@ -796,6 +781,44 @@ def generate_summary(
         }
         for row in rows
     ]
+    
+
+
+# AI Summary Generation Endpoint
+
+@router.post("/workspaces/{workspace_id}/summary", status_code=200)
+def generate_summary(
+    workspace_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    workspace = (
+        db.query(Workspace)
+        .filter(Workspace.id == workspace_id)
+        .first()
+    )
+
+    if not workspace:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace not found",
+        )
+
+    membership = (
+        db.query(WorkspaceMember)
+        .filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not membership:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this workspace",
+        )
+
     try:
         summary = generate_workspace_summary(workspace_id, db)
 
