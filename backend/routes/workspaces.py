@@ -747,7 +747,7 @@ def get_workspace_data(
     query = (
         db.query(WorkspaceData)
         .filter(
-            WorkspaceData.integration_id == integration.id,
+            WorkspaceData.integration_id == integration.workspace_id,
             WorkspaceData.fetched_at == latest_fetched_at,
         )
     )
