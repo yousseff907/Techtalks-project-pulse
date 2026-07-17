@@ -1,5 +1,5 @@
 import itertools
-from urllib import response
+
 import pytest
 from unittest.mock import MagicMock, patch
 
