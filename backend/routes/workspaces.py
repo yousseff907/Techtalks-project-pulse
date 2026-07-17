@@ -9,7 +9,7 @@ from models.workspace import Workspace
 from models.workspace_member import WorkspaceMember
 from models.workspace_integration import WorkspaceIntegrations
 from models.workspace_data import WorkspaceData
-from utils.validators import is_dangerous, is_blank
+from utils.validators import is_dangerous, is_blank, is_valid_email_format
 from sqlalchemy.exc import IntegrityError
 import secrets
 from config import APP_BASE_URL
@@ -17,6 +17,7 @@ from services.sync.tasks import sync_workspace_data
 from utils.redis_client import redis_client
 from sqlalchemy import and_, func, or_
 from services.ai_summary import generate_workspace_summary
+from services.email_service import send_summary_email
 
 router = APIRouter()
 
@@ -31,6 +32,10 @@ class UpdateWorkspaceNameRequest(BaseModel):
 
 class UpdateMemberRoleRequest(BaseModel):
     role: Literal["admin", "member"]
+
+class SummaryEmailRequest(BaseModel):
+	summary: str
+	email: str | None = None
 
 @router.post("/workspaces", status_code=201)
 def	create_workspace(request: CreateWorkspaceRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -831,3 +836,27 @@ def generate_summary(
     return {
         "summary": summary,
     }
+
+@router.post("/workspaces/{workspace_id}/summary/email", status_code=200)
+def send_summary_to_email(request: SummaryEmailRequest, workspace_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+	workspace = (db.query(Workspace).filter(Workspace.id == workspace_id).first())
+
+	if not workspace:
+		raise HTTPException(status_code=404, detail="Workspace not found")
+
+	membership = (db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace_id, WorkspaceMember.user_id == current_user.id).first())
+
+	if not membership:
+		raise HTTPException(status_code=403, detail="You are not a member of this workspace")
+
+	if request.email and request.email.strip() and not is_valid_email_format(request.email):
+		raise HTTPException(status_code=400, detail="Invalid email format")
+
+	recipient = request.email.strip() if request.email and request.email.strip() else current_user.email
+
+	state = send_summary_email(recipient, request.summary)
+
+	if not state:
+		raise HTTPException(status_code=500, detail="Failed to send email, try again later")
+
+	return {"message" : f"Summary has been sent to {recipient}"}
