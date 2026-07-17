@@ -16,7 +16,6 @@ from config import APP_BASE_URL
 from services.sync.tasks import sync_workspace_data
 from utils.redis_client import redis_client
 from sqlalchemy import and_, func, or_
-from typing import Literal
 from services.ai_summary import generate_workspace_summary
 
 router = APIRouter()
