@@ -1,11 +1,11 @@
 import itertools
+from readline import backend
 
 import pytest
 from unittest.mock import MagicMock, patch
 
 from sqlalchemy.exc import IntegrityError
 from fastapi.testclient import TestClient
-from backend.app import app
 from utils.database import get_db
 from utils.dependencies import get_current_user
 from models.user import User
@@ -16,13 +16,13 @@ from models.workspace_data import WorkspaceData
 from datetime import datetime, timedelta, timezone
 
 
-client = TestClient(app)
+client = TestClient(backend.app)
 
 
 @pytest.fixture(autouse=True)
 def clear_overrides():
     yield
-    app.dependency_overrides.clear()
+    backend.app.dependency_overrides.clear()
 
 
 _test_user_counter = itertools.count(1)
@@ -138,12 +138,12 @@ def make_mock_db(workspace=None, existing_member=None, workspace_count=0):
 
 
 def override_dependencies(mock_user, mock_db):
-    app.dependency_overrides[get_current_user] = lambda: mock_user
-    app.dependency_overrides[get_db] = lambda: mock_db
+    backend.app.dependency_overrides[get_current_user] = lambda: mock_user
+    backend.app.dependency_overrides[get_db] = lambda: mock_db
 
 
 def clear_dependencies():
-    app.dependency_overrides.clear()
+    backend.app.dependency_overrides.clear()
 
 
 def test_join_workspace_success():
@@ -1581,7 +1581,7 @@ def test_get_workspace_data_empty(db_session):
 
     user = create_test_user(db_session)
 
-    app.dependency_overrides[get_current_user] = lambda: user
+    backend.app.dependency_overrides[get_current_user] = lambda: user
 
     workspace = create_workspace(
         db_session,
@@ -1599,7 +1599,7 @@ def test_get_workspace_data_latest_batch(db_session):
 
     user = create_test_user(db_session)
 
-    app.dependency_overrides[get_current_user] = lambda: user
+    backend.app.dependency_overrides[get_current_user] = lambda: user
 
     workspace = create_workspace(
         db_session,
@@ -1648,7 +1648,7 @@ def test_get_workspace_data_type_filter(db_session):
 
     user = create_test_user(db_session)
 
-    app.dependency_overrides[get_current_user] = lambda: user
+    backend.app.dependency_overrides[get_current_user] = lambda: user
 
     workspace = create_workspace(
         db_session,
@@ -1688,7 +1688,7 @@ def test_get_workspace_data_source_filter(db_session):
 
     user = create_test_user(db_session)
 
-    app.dependency_overrides[get_current_user] = lambda: user
+    backend.app.dependency_overrides[get_current_user] = lambda: user
 
     workspace = create_workspace(
         db_session,
@@ -1729,7 +1729,7 @@ def test_get_workspace_data_status_filter(db_session):
 
     user = create_test_user(db_session)
 
-    app.dependency_overrides[get_current_user] = lambda: user
+    backend.app.dependency_overrides[get_current_user] = lambda: user
 
     workspace = create_workspace(
         db_session,
@@ -1772,7 +1772,7 @@ def test_get_workspace_data_search(db_session):
 
     user = create_test_user(db_session)
 
-    app.dependency_overrides[get_current_user] = lambda: user
+    backend.app.dependency_overrides[get_current_user] = lambda: user
 
     workspace = create_workspace(
         db_session,
@@ -1812,7 +1812,7 @@ def test_get_workspace_data_combined_filters(db_session):
 
     user = create_test_user(db_session)
 
-    app.dependency_overrides[get_current_user] = lambda: user
+    backend.app.dependency_overrides[get_current_user] = lambda: user
 
     workspace = create_workspace(
         db_session,
@@ -1890,7 +1890,7 @@ def test_get_workspace_data_workspace_not_found(db_session):
 
     user = create_test_user(db_session)
 
-    app.dependency_overrides[get_current_user] = lambda: user
+    backend.app.dependency_overrides[get_current_user] = lambda: user
 
     response = client.get(
         "/workspaces/999999/data"
@@ -1903,7 +1903,7 @@ def test_get_workspace_data_not_member(db_session):
 
     user = create_test_user(db_session)
 
-    app.dependency_overrides[get_current_user] = lambda: user
+    backend.app.dependency_overrides[get_current_user] = lambda: user
 
     other_user = create_test_user(db_session)
 
