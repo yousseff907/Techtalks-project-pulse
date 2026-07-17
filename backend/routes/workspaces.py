@@ -1,6 +1,5 @@
 from typing import Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Depends, Response, status
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from utils.database import get_db, Session
