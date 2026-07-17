@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
+import { createPortal } from "react-dom";
+import { useRef } from "react";
 
 
 
@@ -180,6 +182,161 @@ async function removeMember(
             error.detail ?? "Failed to remove member"
         );
     }
+}
+
+
+function MemberActionsMenu({
+    member,
+    viewerRole,
+    currentUserId,
+    roleMutation,
+    removeMutation,
+    confirmRemoveId,
+    setConfirmRemoveId,
+}: {
+    member: WorkspaceMember;
+    viewerRole?: string;
+    currentUserId?: number;
+    roleMutation: any;
+    removeMutation: any;
+    confirmRemoveId: number | null;
+    setConfirmRemoveId: React.Dispatch<React.SetStateAction<number | null>>;
+}) {
+    const [open, setOpen] = useState(false);
+
+    const buttonRef = useRef<HTMLButtonElement>(null);
+
+    const [menuPosition, setMenuPosition] = useState({
+        top: 0,
+        left: 0,
+    });
+
+    if (
+        member.id === currentUserId ||
+        member.role === "owner" ||
+        (viewerRole !== "owner" && viewerRole !== "admin")
+    ) {
+        return null;
+    }
+
+    const toggle = (e: React.MouseEvent) => {
+        e.stopPropagation();
+
+        if (buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+
+            setMenuPosition({
+                top: rect.bottom + window.scrollY + 4,
+                left: rect.right + window.scrollX - 200,
+            });
+        }
+
+        setOpen((prev) => !prev);
+    };
+
+    return (
+        <>
+            <Button
+                ref={buttonRef}
+                size="sm"
+                variant="outline"
+                onClick={toggle}
+            >
+                ⋮
+            </Button>
+
+            {open &&
+                createPortal(
+                    <>
+                        <div
+                            className="fixed inset-0 z-40"
+                            onClick={() => setOpen(false)}
+                        />
+
+                        <div
+                            className="fixed z-50 w-52 rounded-md border border-border bg-background shadow-lg"
+                            style={{
+                                top: menuPosition.top,
+                                left: menuPosition.left,
+                            }}
+                        >
+                            {member.role === "member" && (
+                                <button
+                                    className="block w-full px-4 py-2 text-left text-sm hover:bg-muted"
+                                    onClick={() => {
+                                        setOpen(false);
+
+                                        roleMutation.mutate({
+                                            userId: member.id,
+                                            role: "admin",
+                                        });
+                                    }}
+                                >
+                                    Promote to Admin
+                                </button>
+                            )}
+
+                            {member.role === "admin" && (
+                                <button
+                                    className="block w-full px-4 py-2 text-left text-sm hover:bg-muted"
+                                    onClick={() => {
+                                        setOpen(false);
+
+                                        roleMutation.mutate({
+                                            userId: member.id,
+                                            role: "member",
+                                        });
+                                    }}
+                                >
+                                    Demote Admin
+                                </button>
+                            )}
+
+                            <button
+                                className="block w-full px-4 py-2 text-left text-sm text-destructive hover:bg-muted"
+                                onClick={() => {
+                                    setOpen(false);
+                                    setConfirmRemoveId(member.id);
+                                }}
+                            >
+                                Remove from Workspace
+                            </button>
+                        </div>
+                    </>,
+                    document.body
+                )}
+
+            {confirmRemoveId === member.id && (
+                <div className="mt-2 flex flex-col items-center gap-2">
+                    <p className="text-center text-xs">
+                        Remove this member?
+                    </p>
+
+                    <div className="flex gap-2">
+                        <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() =>
+                                removeMutation.mutate(member.id)
+                            }
+                        >
+                            Confirm
+                        </Button>
+
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                                setConfirmRemoveId(null)
+                            }
+                        >
+                            Cancel
+                        </Button>
+                    </div>
+                </div>
+            )}
+        </>
+    );
 }
 
 export default function MembersPage() {
@@ -562,101 +719,15 @@ export default function MembersPage() {
                                                 </td>
                                                 
                                                 <td className="px-6 py-5 text-center align-middle">
-                                                    {member.id !== currentUser?.id &&
-                                                        member.role !== "owner" &&
-                                                        (viewerRole === "owner" || viewerRole === "admin") && (
-                                                            <div className="flex flex-col gap-2">
-                                                                {member.role === "member" && (
-                                                                    <Button
-                                                                        size="sm"
-                                                                        disabled={
-                                                                            roleMutation.isPending &&
-                                                                            activeRoleMutationId === member.id
-                                                                        }
-                                                                        onClick={() =>
-                                                                            roleMutation.mutate({
-                                                                                userId: member.id,
-                                                                                role: "admin",
-                                                                            })
-                                                                        }
-                                                                    >
-                                                                        {roleMutation.isPending &&
-                                                                        activeRoleMutationId === member.id
-                                                                            ? "Promoting..."
-                                                                            : "Promote to Admin"}
-                                                                    </Button>
-                                                                )}
-
-                                                                {member.role === "admin" && (
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="outline"
-                                                                        disabled={
-                                                                            roleMutation.isPending &&
-                                                                            activeRoleMutationId === member.id
-                                                                        }
-                                                                        onClick={() =>
-                                                                            roleMutation.mutate({
-                                                                                userId: member.id,
-                                                                                role: "member",
-                                                                            })
-                                                                        }
-                                                                    >
-                                                                        {roleMutation.isPending &&
-                                                                        activeRoleMutationId === member.id
-                                                                            ? "Updating..."
-                                                                            : "Remove Admin"}
-                                                                    </Button>
-                                                                )}
-
-                                                                {roleMutation.isError &&
-                                                                    roleMutationErrorId === member.id && (
-                                                                        <p className="text-xs text-destructive">
-                                                                            {roleMutation.error?.message ?? "Something went wrong."}
-                                                                        </p>
-                                                                )}
-
-                                                                {confirmRemoveId === member.id ? (
-                                                                    <div className="flex flex-col items-center gap-2">
-                                                                        <p className="text-center text-xs font-medium">
-                                                                            Remove this member?
-                                                                        </p>
-
-                                                                        <div className="flex justify-center gap-2">
-                                                                            <Button
-                                                                                size="sm"
-                                                                                variant="destructive"
-                                                                                onClick={() => removeMutation.mutate(member.id)}
-                                                                            >
-                                                                                Confirm
-                                                                            </Button>
-
-                                                                            <Button
-                                                                                size="sm"
-                                                                                variant="outline"
-                                                                                onClick={() => setConfirmRemoveId(null)}
-                                                                            >
-                                                                                Cancel
-                                                                            </Button>
-                                                                        </div>
-
-                                                                        {removeMutation.isError && (
-                                                                            <p className="text-xs text-destructive">
-                                                                                {removeMutation.error?.message ?? "Something went wrong."}
-                                                                            </p>
-                                                                        )}
-                                                                    </div>
-                                                                ) : (
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="destructive"
-                                                                        onClick={() => setConfirmRemoveId(member.id)}
-                                                                    >
-                                                                        Remove
-                                                                    </Button>
-                                                                )}
-                                                            </div>
-                                                        )}
+                                                    <MemberActionsMenu
+                                                        member={member}
+                                                        viewerRole={viewerRole}
+                                                        currentUserId={currentUser?.id}
+                                                        roleMutation={roleMutation}
+                                                        removeMutation={removeMutation}
+                                                        confirmRemoveId={confirmRemoveId}
+                                                        setConfirmRemoveId={setConfirmRemoveId}
+                                                    />
                                                 </td>
                                             </tr>
                                         ))}
