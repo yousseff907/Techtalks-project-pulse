@@ -14,7 +14,7 @@ from config import APP_BASE_URL
 from services.sync.tasks import sync_workspace_data
 from utils.redis_client import redis_client
 from sqlalchemy import and_, func, or_
-from typing import Literal
+from typing import Literal, Optional
 from services.ai_summary import generate_workspace_summary
 from services.email_service import send_summary_email
 
@@ -738,3 +738,117 @@ def send_summary_to_email(request: SummaryEmailRequest, workspace_id: int, curre
 		raise HTTPException(status_code=500, detail="Failed to send email, try again later")
 
 	return {"message" : f"Summary has been sent to {recipient}"}
+
+
+@router.get("/workspaces/{workspace_id}/data", status_code=200)
+def get_workspace_data(
+    workspace_id: int,
+    type: Optional[str] = None,
+    source: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    workspace = (
+        db.query(Workspace)
+        .filter(Workspace.id == workspace_id)
+        .first()
+    )
+
+    if not workspace:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace not found",
+        )
+
+    membership = (
+        db.query(WorkspaceMember)
+        .filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not membership:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this workspace",
+        )
+
+    integration = (
+        db.query(WorkspaceIntegrations)
+        .filter(
+            WorkspaceIntegrations.workspace_id == workspace_id
+        )
+        .first()
+    )
+
+    if not integration:
+        return []
+
+    # Compute latest fetched_at PER SOURCE, not globally.
+    # Jira and Notion (etc.) sync independently, so a global MAX(fetched_at)
+    # would only match whichever source synced most recently and silently
+    # drop the others.
+    latest_per_source = (
+        db.query(
+            WorkspaceData.source,
+            func.max(WorkspaceData.fetched_at).label("max_fetched_at"),
+        )
+        .filter(
+            WorkspaceData.integration_id == integration.workspace_id
+        )
+        .group_by(WorkspaceData.source)
+        .all()
+    )
+
+    if not latest_per_source:
+        return []
+
+    latest_conditions = [
+        and_(
+            WorkspaceData.source == src,
+            WorkspaceData.fetched_at == max_fetched_at,
+        )
+        for src, max_fetched_at in latest_per_source
+    ]
+
+    query = (
+        db.query(WorkspaceData)
+        .filter(
+            WorkspaceData.integration_id == integration.workspace_id,
+            or_(*latest_conditions),
+        )
+    )
+
+    if type:
+        query = query.filter(WorkspaceData.type == type)
+
+    if source:
+        query = query.filter(WorkspaceData.source == source)
+
+    if status:
+        query = query.filter(WorkspaceData.status == status)
+
+    if search:
+        query = query.filter(
+            WorkspaceData.title.ilike(f"%{search}%")
+        )
+
+    rows = query.order_by(WorkspaceData.id).all()
+
+    return [
+        {
+            "id": row.id,
+            "integration_id": row.integration_id,
+            "type": row.type,
+            "source": row.source,
+            "title": row.title,
+            "status": row.status,
+            "payload": row.payload,
+            "fetched_at": row.fetched_at,
+        }
+        for row in rows
+    ]

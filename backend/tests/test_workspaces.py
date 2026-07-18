@@ -2201,3 +2201,529 @@ def test_generate_workspace_summary_runtime_error(db_session, mock_user):
         response.json()["detail"]
         == "Failed to generate workspace summary"
     )
+    
+#Get Workspace Data tests
+
+def test_get_workspace_data_workspace_not_found(db_session, mock_user):
+    mock_user.id = 1
+
+    response = client.get("/workspaces/9999/data")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Workspace not found"
+
+
+def test_get_workspace_data_forbidden_for_non_member(db_session, mock_user):
+    owner = User(username="data_owner", email="data_owner@example.com", is_verified=True)
+    stranger = User(username="data_stranger", email="data_stranger@example.com", is_verified=True)
+    db_session.add_all([owner, stranger])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Private Data WS",
+        created_by=owner.id,
+        invite_code="data1",
+        invite_link="link_data1",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.commit()
+
+    mock_user.id = stranger.id
+    response = client.get(f"/workspaces/{workspace.id}/data")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "You are not a member of this workspace"
+
+
+def test_get_workspace_data_no_integration_returns_empty_list(db_session, mock_user):
+    owner = User(username="data_owner2", email="data_owner2@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="No Integration Data WS",
+        created_by=owner.id,
+        invite_code="data2",
+        invite_link="link_data2",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.get(f"/workspaces/{workspace.id}/data")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_get_workspace_data_no_sync_yet_returns_empty_list(db_session, mock_user):
+    owner = User(username="data_owner3", email="data_owner3@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="No Sync Data WS",
+        created_by=owner.id,
+        invite_code="data3",
+        invite_link="link_data3",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.get(f"/workspaces/{workspace.id}/data")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_get_workspace_data_returns_synced_rows(db_session, mock_user):
+    owner = User(username="data_owner4", email="data_owner4@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Synced Data WS",
+        created_by=owner.id,
+        invite_code="data4",
+        invite_link="link_data4",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    db_session.add_all([
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Fix login bug",
+            status="TODO",
+            payload={"id": "task-1"},
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="notion",
+            title="Write docs",
+            status="DONE",
+            payload={"id": "task-2"},
+        ),
+    ])
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.get(f"/workspaces/{workspace.id}/data")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 2
+
+    titles = {row["title"] for row in body}
+    assert titles == {"Fix login bug", "Write docs"}
+
+
+def test_get_workspace_data_uses_latest_batch_per_source(db_session, mock_user):
+    owner = User(username="data_owner5", email="data_owner5@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Latest Batch Per Source WS",
+        created_by=owner.id,
+        invite_code="data5",
+        invite_link="link_data5",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    jira_old_time = datetime.now(timezone.utc) - timedelta(hours=2)
+    jira_new_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+    notion_time = datetime.now(timezone.utc)
+
+    db_session.add_all([
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Old Jira Task",
+            fetched_at=jira_old_time,
+            payload={"id": "jira-old"},
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="New Jira Task",
+            fetched_at=jira_new_time,
+            payload={"id": "jira-new"},
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="notion",
+            title="Notion Task",
+            fetched_at=notion_time,
+            payload={"id": "notion-only"},
+        ),
+    ])
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.get(f"/workspaces/{workspace.id}/data")
+
+    assert response.status_code == 200
+    body = response.json()
+    titles = {row["title"] for row in body}
+
+    # Notion synced after Jira, so a naive global MAX(fetched_at) would only
+    # match Notion's timestamp and silently drop Jira's data entirely.
+    assert "New Jira Task" in titles
+    assert "Notion Task" in titles
+    assert "Old Jira Task" not in titles
+    assert len(body) == 2
+
+
+def test_get_workspace_data_filters_by_type(db_session, mock_user):
+    owner = User(username="data_owner6", email="data_owner6@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Filter Type WS",
+        created_by=owner.id,
+        invite_code="data6",
+        invite_link="link_data6",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    db_session.add_all([
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="A Task",
+            payload={"id": "1"},
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="user",
+            source="jira",
+            title=None,
+            payload={"id": "2"},
+        ),
+    ])
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.get(f"/workspaces/{workspace.id}/data?type=task")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["type"] == "task"
+
+
+def test_get_workspace_data_filters_by_source(db_session, mock_user):
+    owner = User(username="data_owner7", email="data_owner7@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Filter Source WS",
+        created_by=owner.id,
+        invite_code="data7",
+        invite_link="link_data7",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    db_session.add_all([
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Jira Task",
+            payload={"id": "1"},
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="notion",
+            title="Notion Task",
+            payload={"id": "2"},
+        ),
+    ])
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.get(f"/workspaces/{workspace.id}/data?source=notion")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["source"] == "notion"
+
+
+def test_get_workspace_data_filters_by_status(db_session, mock_user):
+    owner = User(username="data_owner8", email="data_owner8@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Filter Status WS",
+        created_by=owner.id,
+        invite_code="data8",
+        invite_link="link_data8",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    db_session.add_all([
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Done Task",
+            status="DONE",
+            payload={"id": "1"},
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Todo Task",
+            status="TODO",
+            payload={"id": "2"},
+        ),
+    ])
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.get(f"/workspaces/{workspace.id}/data?status=DONE")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["status"] == "DONE"
+
+
+def test_get_workspace_data_filters_by_search(db_session, mock_user):
+    owner = User(username="data_owner9", email="data_owner9@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Filter Search WS",
+        created_by=owner.id,
+        invite_code="data9",
+        invite_link="link_data9",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    db_session.add_all([
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Fix login bug",
+            payload={"id": "1"},
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Write documentation",
+            payload={"id": "2"},
+        ),
+    ])
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.get(f"/workspaces/{workspace.id}/data?search=login")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["title"] == "Fix login bug"
+
+
+def test_get_workspace_data_search_is_case_insensitive(db_session, mock_user):
+    owner = User(username="data_owner10", email="data_owner10@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Case Insensitive Search WS",
+        created_by=owner.id,
+        invite_code="data10",
+        invite_link="link_data10",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Fix Login Bug",
+            payload={"id": "1"},
+        )
+    )
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.get(f"/workspaces/{workspace.id}/data?search=LOGIN")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["title"] == "Fix Login Bug"
+
+
+def test_get_workspace_data_combines_multiple_filters(db_session, mock_user):
+    owner = User(username="data_owner11", email="data_owner11@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Combined Filters WS",
+        created_by=owner.id,
+        invite_code="data11",
+        invite_link="link_data11",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    db_session.add_all([
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Fix login bug",
+            status="TODO",
+            payload={"id": "1"},
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="Fix login redirect",
+            status="DONE",
+            payload={"id": "2"},
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="notion",
+            title="Fix login page copy",
+            status="TODO",
+            payload={"id": "3"},
+        ),
+    ])
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.get(
+        f"/workspaces/{workspace.id}/data?source=jira&status=TODO&search=login"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["title"] == "Fix login bug"
+
+
+def test_get_workspace_data_no_filters_returns_all_types(db_session, mock_user):
+    owner = User(username="data_owner12", email="data_owner12@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="No Filters WS",
+        created_by=owner.id,
+        invite_code="data12",
+        invite_link="link_data12",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    db_session.add_all([
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            title="A Task",
+            payload={"id": "1"},
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="project",
+            source="jira",
+            title="A Project",
+            payload={"id": "2"},
+        ),
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="user",
+            source="notion",
+            title=None,
+            payload={"id": "3"},
+        ),
+    ])
+    db_session.commit()
+
+    mock_user.id = owner.id
+    response = client.get(f"/workspaces/{workspace.id}/data")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 3
