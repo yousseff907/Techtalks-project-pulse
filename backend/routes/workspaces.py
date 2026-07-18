@@ -16,7 +16,6 @@ from config import APP_BASE_URL
 from services.sync.tasks import sync_workspace_data
 from utils.redis_client import redis_client
 from sqlalchemy import and_, func, or_
-from typing import Literal
 from services.ai_summary import generate_workspace_summary
 from services.email_service import send_summary_email
 
@@ -692,102 +691,6 @@ def remove_workspace_member(
     return {"message": "Member removed successfully"}
 
 
-@router.get("/workspaces/{workspace_id}/data", status_code=200)
-def get_workspace_data(
-    workspace_id: int,
-    type: Optional[str] = None,
-    source: Optional[str] = None,
-    status: Optional[str] = None,
-    search: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    workspace = (
-        db.query(Workspace)
-        .filter(Workspace.id == workspace_id)
-        .first()
-    )
-
-    if not workspace:
-        raise HTTPException(
-            status_code=404,
-            detail="Workspace not found",
-        )
-
-    membership = (
-        db.query(WorkspaceMember)
-        .filter(
-            WorkspaceMember.workspace_id == workspace_id,
-            WorkspaceMember.user_id == current_user.id,
-        )
-        .first()
-    )
-
-    if not membership:
-        raise HTTPException(
-            status_code=403,
-            detail="You are not a member of this workspace",
-        )
-
-    integration = (
-        db.query(WorkspaceIntegrations)
-        .filter(
-            WorkspaceIntegrations.workspace_id == workspace_id
-        )
-        .first()
-    )
-
-    if not integration:
-        return []
-
-    latest_fetched_at = (
-        db.query(func.max(WorkspaceData.fetched_at))
-        .filter(
-           WorkspaceData.integration_id == integration.id        )
-        .scalar()
-    )
-
-    if latest_fetched_at is None:
-        return []
-
-    query = (
-        db.query(WorkspaceData)
-        .filter(
-            WorkspaceData.integration_id == integration.workspace_id,
-            WorkspaceData.fetched_at == latest_fetched_at,
-        )
-    )
-
-    if type:
-        query = query.filter(WorkspaceData.type == type)
-
-    if source:
-        query = query.filter(WorkspaceData.source == source)
-
-    if status:
-        query = query.filter(WorkspaceData.status == status)
-
-    if search:
-        query = query.filter(
-            WorkspaceData.title.ilike(f"%{search}%")
-        )
-
-    rows = query.order_by(WorkspaceData.id).all()
-
-    return [
-        {
-            "id": row.id,
-            "integration_id": row.integration_id,
-            "type": row.type,
-            "source": row.source,
-            "title": row.title,
-            "status": row.status,
-            "payload": row.payload,
-            "fetched_at": row.fetched_at,
-        }
-        for row in rows
-    ]
-    
 
 
 # AI Summary Generation Endpoint
