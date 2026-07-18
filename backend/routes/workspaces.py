@@ -739,7 +739,6 @@ def send_summary_to_email(request: SummaryEmailRequest, workspace_id: int, curre
 
 	return {"message" : f"Summary has been sent to {recipient}"}
 
-from sqlalchemy import and_, or_
 
 @router.get("/workspaces/{workspace_id}/data", status_code=200)
 def get_workspace_data(
