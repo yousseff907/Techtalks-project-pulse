@@ -2727,3 +2727,366 @@ def test_get_workspace_data_no_filters_returns_all_types(db_session, mock_user):
     assert response.status_code == 200
     body = response.json()
     assert len(body) == 3
+    
+    # Dashboard Aggregation Endpoint tests
+
+
+def test_get_workspace_dashboard_empty_state(db_session, mock_user):
+    owner = User(username="owner", email="owner@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Dashboard WS",
+        created_by=owner.id,
+        invite_code="dash1",
+        invite_link="dash1-link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.get(f"/workspaces/{workspace.id}/dashboard")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["total_tasks"] == 0
+    assert body["by_status"] == {"TODO": 0, "IN_PROGRESS": 0, "DONE": 0}
+    assert body["completion_rate"] == 0
+    assert body["workload"] == {}
+
+
+def test_get_workspace_dashboard_no_integration(db_session, mock_user):
+    owner = User(username="owner2", email="owner2@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="No Integration WS",
+        created_by=owner.id,
+        invite_code="noint",
+        invite_link="noint-link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.get(f"/workspaces/{workspace.id}/dashboard")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_tasks"] == 0
+    assert body["completion_rate"] == 0
+    assert body["workload"] == {}
+
+
+def test_get_workspace_dashboard_correct_counts_mixed_statuses(db_session, mock_user):
+    owner = User(username="owner3", email="owner3@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Mixed Statuses WS",
+        created_by=owner.id,
+        invite_code="mixed1",
+        invite_link="mixed1-link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    for status in ["TODO", "TODO", "IN_PROGRESS", "DONE"]:
+        db_session.add(
+            WorkspaceData(
+                integration_id=workspace.id,
+                type="task",
+                source="jira",
+                status=status,
+                payload={"assignee": "Alice"},
+            )
+        )
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.get(f"/workspaces/{workspace.id}/dashboard")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["total_tasks"] == 4
+    assert body["by_status"] == {"TODO": 2, "IN_PROGRESS": 1, "DONE": 1}
+
+
+def test_get_workspace_dashboard_completion_rate_calculation(db_session, mock_user):
+    owner = User(username="owner4", email="owner4@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Completion Rate WS",
+        created_by=owner.id,
+        invite_code="rate1",
+        invite_link="rate1-link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    # 125 TODO, 30 IN_PROGRESS, 45 DONE => 200 total, 22.5% completion rate
+    for _ in range(125):
+        db_session.add(
+            WorkspaceData(
+                integration_id=workspace.id,
+                type="task",
+                source="jira",
+                status="TODO",
+                payload={},
+            )
+        )
+    for _ in range(30):
+        db_session.add(
+            WorkspaceData(
+                integration_id=workspace.id,
+                type="task",
+                source="jira",
+                status="IN_PROGRESS",
+                payload={},
+            )
+        )
+    for _ in range(45):
+        db_session.add(
+            WorkspaceData(
+                integration_id=workspace.id,
+                type="task",
+                source="jira",
+                status="DONE",
+                payload={},
+            )
+        )
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.get(f"/workspaces/{workspace.id}/dashboard")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["total_tasks"] == 200
+    assert body["by_status"] == {"TODO": 125, "IN_PROGRESS": 30, "DONE": 45}
+    assert body["completion_rate"] == 22.5
+
+
+def test_get_workspace_dashboard_workload_grouping(db_session, mock_user):
+    owner = User(username="owner5", email="owner5@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Workload WS",
+        created_by=owner.id,
+        invite_code="load1",
+        invite_link="load1-link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    for assignee in ["Alice", "Alice", "Bob", None, ""]:
+        db_session.add(
+            WorkspaceData(
+                integration_id=workspace.id,
+                type="task",
+                source="jira",
+                status="TODO",
+                payload={"assignee": assignee},
+            )
+        )
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.get(f"/workspaces/{workspace.id}/dashboard")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["workload"]["Alice"] == 2
+    assert body["workload"]["Bob"] == 1
+    assert body["workload"]["Unassigned"] == 2
+
+
+def test_get_workspace_dashboard_multi_source_combination(db_session, mock_user):
+    owner = User(username="owner6", email="owner6@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Multi Source WS",
+        created_by=owner.id,
+        invite_code="multi1",
+        invite_link="multi1-link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    db_session.add_all(
+        [
+            WorkspaceData(
+                integration_id=workspace.id,
+                type="task",
+                source="jira",
+                status="TODO",
+                payload={"assignee": "Alice"},
+            ),
+            WorkspaceData(
+                integration_id=workspace.id,
+                type="task",
+                source="jira",
+                status="DONE",
+                payload={"assignee": "Bob"},
+            ),
+            WorkspaceData(
+                integration_id=workspace.id,
+                type="task",
+                source="notion",
+                status="IN_PROGRESS",
+                payload={"assignee": "Alice"},
+            ),
+            WorkspaceData(
+                integration_id=workspace.id,
+                type="task",
+                source="notion",
+                status="DONE",
+                payload={"assignee": "Bob"},
+            ),
+        ]
+    )
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.get(f"/workspaces/{workspace.id}/dashboard")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["total_tasks"] == 4
+    assert body["by_status"] == {"TODO": 1, "IN_PROGRESS": 1, "DONE": 2}
+    assert body["by_source"]["jira"]["TODO"] == 1
+    assert body["by_source"]["jira"]["DONE"] == 1
+    assert body["by_source"]["jira"]["total"] == 2
+    assert body["by_source"]["notion"]["IN_PROGRESS"] == 1
+    assert body["by_source"]["notion"]["DONE"] == 1
+    assert body["by_source"]["notion"]["total"] == 2
+    assert body["workload"]["Alice"] == 2
+    assert body["workload"]["Bob"] == 2
+
+
+def test_get_workspace_dashboard_uses_latest_sync_batch(db_session, mock_user):
+    owner = User(username="owner7", email="owner7@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Latest Batch WS",
+        created_by=owner.id,
+        invite_code="latest1",
+        invite_link="latest1-link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    old_time = datetime.now(timezone.utc) - timedelta(hours=1)
+    new_time = datetime.now(timezone.utc)
+
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            status="TODO",
+            fetched_at=old_time,
+            payload={"assignee": "Old Assignee"},
+        )
+    )
+    db_session.add(
+        WorkspaceData(
+            integration_id=workspace.id,
+            type="task",
+            source="jira",
+            status="DONE",
+            fetched_at=new_time,
+            payload={"assignee": "New Assignee"},
+        )
+    )
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.get(f"/workspaces/{workspace.id}/dashboard")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["total_tasks"] == 1
+    assert body["by_status"] == {"TODO": 0, "IN_PROGRESS": 0, "DONE": 1}
+    assert body["workload"] == {"New Assignee": 1}
+
+
+def test_get_workspace_dashboard_workspace_not_found(db_session, mock_user):
+    response = client.get("/workspaces/999999/dashboard")
+    assert response.status_code == 404
+
+
+def test_get_workspace_dashboard_forbidden_for_non_member(db_session, mock_user):
+    owner = User(username="owner8", email="owner8@example.com", is_verified=True)
+    outsider = User(username="outsider", email="outsider@example.com", is_verified=True)
+    db_session.add_all([owner, outsider])
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Forbidden WS",
+        created_by=owner.id,
+        invite_code="forbid1",
+        invite_link="forbid1-link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.commit()
+
+    mock_user.id = outsider.id
+
+    response = client.get(f"/workspaces/{workspace.id}/dashboard")
+
+    assert response.status_code == 403
