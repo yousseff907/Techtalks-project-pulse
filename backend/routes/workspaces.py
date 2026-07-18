@@ -966,7 +966,7 @@ def get_workspace_dashboard(
     workload = {}
 
     for task in tasks:
-        status = task.status or "UNKNOWN"
+        status = task.status if task.status in TASK_STATUSES else "UNKNOWN"
         by_status[status] = by_status.get(status, 0) + 1
 
         source_counts = by_source.setdefault(

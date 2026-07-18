@@ -3090,3 +3090,60 @@ def test_get_workspace_dashboard_forbidden_for_non_member(db_session, mock_user)
     response = client.get(f"/workspaces/{workspace.id}/dashboard")
 
     assert response.status_code == 403
+    def test_get_workspace_dashboard_unrecognized_status_collapses_to_unknown(db_session, mock_user):
+    owner = User(username="owner9", email="owner9@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Unknown Status WS",
+        created_by=owner.id,
+        invite_code="unknown1",
+        invite_link="unknown1-link",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.add(WorkspaceIntegrations(workspace_id=workspace.id))
+    db_session.flush()
+
+    db_session.add_all(
+        [
+            WorkspaceData(
+                integration_id=workspace.id,
+                type="task",
+                source="jira",
+                status="TODO",
+                payload={"assignee": "Alice"},
+            ),
+            WorkspaceData(
+                integration_id=workspace.id,
+                type="task",
+                source="jira",
+                status="BLOCKED",
+                payload={"assignee": "Bob"},
+            ),
+            WorkspaceData(
+                integration_id=workspace.id,
+                type="task",
+                source="notion",
+                status=None,
+                payload={"assignee": "Carol"},
+            ),
+        ]
+    )
+    db_session.commit()
+
+    mock_user.id = owner.id
+
+    response = client.get(f"/workspaces/{workspace.id}/dashboard")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["total_tasks"] == 3
+    assert body["by_status"] == {"TODO": 1, "IN_PROGRESS": 0, "DONE": 0, "UNKNOWN": 2}
+    assert body["by_source"]["jira"]["UNKNOWN"] == 1
+    assert body["by_source"]["notion"]["UNKNOWN"] == 1
+    assert "BLOCKED" not in body["by_status"]
