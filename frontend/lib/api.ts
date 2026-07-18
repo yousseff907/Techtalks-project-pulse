@@ -1,25 +1,47 @@
-import axios, { AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
+import axios from "axios";
+import { useAuthStore } from "./auth-store";
 
 
-export const api = axios.create({
+const api = axios.create({
 
   baseURL:
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:8000",
-
-  headers:{
-    "Content-Type":
-      "application/json",
-  },
+    process.env.NEXT_PUBLIC_API_URL,
 
 });
 
 
 
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  // Add auth token here later
-  return config;
-});
+api.interceptors.request.use(
+
+(config)=>{
+
+
+const token =
+useAuthStore.getState().accessToken;
+
+
+if(token){
+
+config.headers.Authorization =
+`Bearer ${token}`;
+
+}
+
+
+return config;
+
+
+},
+
+
+(error)=>{
+
+return Promise.reject(error);
+
+}
+
+);
+
 
 
 export default api;

@@ -1,44 +1,34 @@
 import { z } from "zod";
 
 
+export const jiraSchema = z.object({
 
-export const jiraIntegrationSchema =
-z.object({
-
-base_url:
-z
-.string()
-.trim()
-.url("Invalid Jira URL"),
+  base_url: z
+    .string()
+    .trim()
+    .url("Invalid Jira URL format"),
 
 
-admin_email:
-z
-.string()
-.trim()
-.email("Invalid email"),
+  admin_email: z
+    .string()
+    .trim()
+    .email("Invalid email format"),
 
 
-api_key:
-z
-.string()
-.trim()
-.min(1,"API key required"),
-
+  api_key: z
+    .string()
+    .trim()
+    .min(1, "API key is required"),
 
 });
 
 
 
+export const notionSchema = z.object({
 
-export const notionIntegrationSchema =
-z.object({
-
-api_key:
-z
-.string()
-.trim()
-.min(1,"API key required"),
-
+  api_key: z
+    .string()
+    .trim()
+    .min(1, "API key is required"),
 
 });

@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-
-import { useMutation, useQuery } from "@tanstack/react-query";
-
 import { z } from "zod";
+
+import {
+  useMutation,
+  useQuery,
+} from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,46 +22,12 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 
+import api from "@/lib/api";
 
-
-/*
-|--------------------------------------------------------------------------
-| Validation
-|--------------------------------------------------------------------------
-*/
-
-
-const jiraSchema = z.object({
-
-  base_url: z
-    .string()
-    .trim()
-    .url("Invalid Jira URL format"),
-
-
-  admin_email: z
-    .string()
-    .trim()
-    .email("Invalid email format"),
-
-
-  api_key: z
-    .string()
-    .trim()
-    .min(1, "API key is required"),
-
-});
-
-
-
-const notionSchema = z.object({
-
-  api_key: z
-    .string()
-    .trim()
-    .min(1, "API key is required"),
-
-});
+import {
+  jiraSchema,
+  notionSchema,
+} from "@/lib/validation";
 
 
 
@@ -72,127 +40,69 @@ type NotionFormValues =
 
 
 
-type Workspace = {
-
-  role:
-    | "owner"
-    | "admin"
-    | "member";
-
-
-  jira_connected_at:
-    string | null;
-
-
-  notion_connected_at:
-    string | null;
-
-};
-
-
-
-
 export default function IntegrationsPage() {
 
 
-  const { workspace_id } = useParams();
+  const { workspace_id } =
+    useParams();
 
 
 
-  const [workspaceState, setWorkspaceState]
-    = useState<Workspace | null>(null);
+  const [jiraError, setJiraError] =
+    useState("");
 
+  const [notionError, setNotionError] =
+    useState("");
 
-
-  const [jiraError, setJiraError]
-    = useState("");
-
-
-
-  const [notionError, setNotionError]
-    = useState("");
-
-
-
-
-  /*
-  |--------------------------------------------------------------------------
-  | Workspace Query
-  |
-  | Temporary mock
-  |
-  | Replace with:
-  |
-  | GET /workspaces/{workspace_id}
-  |
-  |--------------------------------------------------------------------------
-  */
 
 
   const {
     data: workspace,
+    refetch,
     isLoading,
-
   } = useQuery({
 
-    queryKey:[
+    queryKey: [
       "workspace",
       workspace_id,
     ],
 
 
-    queryFn: async():Promise<Workspace> => {
-
-
-      return {
-
-        role:"owner",
-
-        jira_connected_at:null,
-
-        notion_connected_at:null,
-
-      };
-
-
+    queryFn: async () => {
 
       /*
-      REAL BACKEND:
+        Replace this with:
+        
+        GET /workspaces/{workspace_id}
 
-      return api.get(
-        `/workspaces/${workspace_id}`
-      );
+        Backend should return:
+
+        {
+          role,
+          jira_connected_at,
+          notion_connected_at
+        }
 
       */
 
 
-    },
+      return {
 
+        role: "owner",
+
+        jira_connected_at:
+          null,
+
+        notion_connected_at:
+          null,
+
+      };
+
+    },
 
   });
 
 
-
-
-  useEffect(()=>{
-
-    if(workspace){
-
-      setWorkspaceState(workspace);
-
-    }
-
-  },[workspace]);
-
-
-
-
-
-  /*
-  |--------------------------------------------------------------------------
-  | Forms
-  |--------------------------------------------------------------------------
-  */
 
 
   const jiraForm =
@@ -202,17 +112,18 @@ export default function IntegrationsPage() {
         zodResolver(jiraSchema),
 
 
-      defaultValues:{
+      defaultValues: {
 
-        base_url:"",
+        base_url: "",
 
-        admin_email:"",
+        admin_email: "",
 
-        api_key:"",
+        api_key: "",
 
       },
 
     });
+
 
 
 
@@ -224,216 +135,127 @@ export default function IntegrationsPage() {
         zodResolver(notionSchema),
 
 
-      defaultValues:{
+      defaultValues: {
 
-        api_key:"",
+        api_key: "",
 
       },
 
     });
 
+  const jiraMutation = useMutation({
 
-  /*
-  |--------------------------------------------------------------------------
-  | Jira Mutation
-  |--------------------------------------------------------------------------
-  */
+    mutationFn: async (
+      values: JiraFormValues
+    ) => {
 
 
-  const jiraMutation =
-    useMutation({
+      return api.patch(
 
-      mutationFn:
-        async(values:JiraFormValues)=>{
+        `/workspaces/${workspace_id}/integrations/jira`,
 
+        values
 
-          /*
-          ==============================================
-          MOCK IMPLEMENTATION
-          ==============================================
-          */
+      );
 
+    },
 
-          await new Promise(
-            (resolve)=>
-              setTimeout(resolve,800)
-          );
 
 
-          console.log(
-            "Mock Jira save:",
-            values
-          );
+    onSuccess: () => {
 
+      setJiraError("");
 
+      refetch();
 
-          /*
-          ==============================================
-          REAL BACKEND IMPLEMENTATION
+      alert(
+        "Jira connected successfully."
+      );
 
-          import api from "@/lib/api";
+    },
 
 
-          return api.patch(
-            `/workspaces/${workspace_id}/integrations/jira`,
-            values
-          );
 
+    onError: (error: any) => {
 
-          ==============================================
-          */
+      setJiraError(
 
+        error?.response?.data?.detail ??
 
-        },
+        "Invalid Jira credentials"
 
+      );
 
+    },
 
-      onSuccess:()=>{
+  });
 
 
-        setJiraError("");
 
 
 
-        setWorkspaceState(
-          (previous)=>({
+  const notionMutation = useMutation({
 
-            ...previous!,
+    mutationFn: async (
 
-            jira_connected_at:
-              new Date()
-              .toISOString(),
+      values: NotionFormValues
 
-          })
-        );
+    ) => {
 
 
-      },
+      return api.patch(
 
+        `/workspaces/${workspace_id}/integrations/notion`,
 
+        values
 
-      onError:(error:any)=>{
+      );
 
 
-        setJiraError(
+    },
 
-          error?.response?.data?.detail
-          ??
-          "Invalid Jira credentials"
 
-        );
 
+    onSuccess: () => {
 
-      },
 
+      setNotionError("");
 
-    });
+      refetch();
 
 
+      alert(
 
+        "Notion connected successfully."
 
+      );
 
-  /*
-  |--------------------------------------------------------------------------
-  | Notion Mutation
-  |--------------------------------------------------------------------------
-  */
 
+    },
 
-  const notionMutation =
-    useMutation({
 
-      mutationFn:
-        async(values:NotionFormValues)=>{
 
+    onError: (error: any) => {
 
-          /*
-          ==============================================
-          MOCK IMPLEMENTATION
-          ==============================================
-          */
 
+      setNotionError(
 
-          await new Promise(
-            (resolve)=>
-              setTimeout(resolve,800)
-          );
+        error?.response?.data?.detail ??
 
+        "Invalid Notion credentials"
 
-          console.log(
-            "Mock Notion save:",
-            values
-          );
+      );
 
 
+    },
 
-          /*
-          ==============================================
-          REAL BACKEND IMPLEMENTATION
+  });
 
-          import api from "@/lib/api";
 
 
-          return api.patch(
-            `/workspaces/${workspace_id}/integrations/notion`,
-            values
-          );
 
 
-          ==============================================
-          */
-
-
-        },
-
-
-
-      onSuccess:()=>{
-
-
-        setNotionError("");
-
-
-
-        setWorkspaceState(
-          (previous)=>({
-
-            ...previous!,
-
-            notion_connected_at:
-              new Date()
-              .toISOString(),
-
-          })
-        );
-
-
-      },
-
-
-
-      onError:(error:any)=>{
-
-
-        setNotionError(
-
-          error?.response?.data?.detail
-          ??
-          "Invalid Notion credentials"
-
-        );
-
-
-      },
-
-
-    });
-
-
-
-
-
-  if(isLoading || !workspaceState){
+  if (isLoading) {
 
     return (
 
@@ -450,671 +272,579 @@ export default function IntegrationsPage() {
 
 
 
+
   const readOnly =
-    workspaceState.role !== "owner"
-    &&
-    workspaceState.role !== "admin";
 
-return (
+    workspace?.role !== "owner" &&
 
-<div className="
-max-w-4xl
-mx-auto
-py-10
-space-y-8
-">
-
-
-<h1 className="
-text-3xl
-font-bold
-">
-Workspace Integrations
-</h1>
+    workspace?.role !== "admin";
 
 
 
 
-{
-readOnly && (
 
-<div className="
-rounded
-border
-border-red-300
-bg-red-50
-p-4
-text-red-600
-">
+  return (
 
-You don't have permission to edit integrations.
+    <div className="max-w-4xl mx-auto py-10 space-y-8">
 
-</div>
 
-)
 
-}
+      <h1 className="text-3xl font-bold">
+
+        Workspace Integrations
+
+      </h1>
 
 
 
 
-{/* =========================
-        Jira
-========================= */}
 
+      {readOnly && (
 
-<Card>
+        <div
 
-<CardHeader>
+          className="
+          rounded-md
+          border
+          border-red-300
+          bg-red-50
+          p-4
+          text-red-600
+          "
 
-<CardTitle>
-Jira
-</CardTitle>
+        >
 
-</CardHeader>
+          You don't have permission to edit integrations.
 
+        </div>
 
-
-<CardContent className="space-y-5">
-
-
-<Status
-
-connected={
-!!workspaceState.jira_connected_at
-}
-
-date={
-workspaceState.jira_connected_at
-}
-
-/>
+      )}
 
 
 
-<form
-
-className="space-y-4"
 
 
-onSubmit={
 
-jiraForm.handleSubmit(
+      {/* Jira */}
 
-          (values: JiraFormValues) => {
+      <Card>
 
-            setJiraError("");
 
-            jiraMutation.mutate(values);
+        <CardHeader>
+
+          <CardTitle>
+
+            Jira
+
+          </CardTitle>
+
+        </CardHeader>
+
+
+
+
+        <CardContent className="space-y-6">
+
+
+
+          <div>
+
+            <p className="font-medium">
+
+              Status
+
+            </p>
+
+
+            {
+
+            workspace?.jira_connected_at
+
+            ? (
+
+              <span className="text-green-600">
+
+                Connected
+
+              </span>
+
+            )
+
+            : (
+
+              <span className="text-muted-foreground">
+
+                Not Connected
+
+              </span>
+
+            )
+
+            }
+
+
+          </div>
+
+
+
+
+
+          {
+
+          workspace?.jira_connected_at && (
+
+            <p className="text-sm text-muted-foreground">
+
+              Connected at:
+
+              {" "}
+
+              {
+
+              new Date(
+
+                workspace.jira_connected_at
+
+              ).toLocaleString()
+
+              }
+
+            </p>
+
+          )
 
           }
 
-)
 
-}
 
->
 
 
 
-<div className="space-y-2">
+          <form
 
+            className="space-y-4"
 
-<Label>
-Base URL
-</Label>
+            onSubmit={
 
+              jiraForm.handleSubmit(
 
-<Input
+                (values) =>
 
-className="
-border
-border-input
-"
+                jiraMutation.mutate(values)
 
+              )
 
-placeholder="
-https://company.atlassian.net
-"
+            }
 
+          >
 
-disabled={readOnly}
 
 
-{...
 
-jiraForm.register(
-"base_url"
-)
+            <div>
 
-}
+              <Label>
 
+                Base URL
 
-/>
+              </Label>
 
 
+              <Input
 
-{
-jiraForm.formState.errors.base_url && (
+                className="border border-border shadow-sm"
 
-<p className="
-text-sm
-text-red-500
-">
+                placeholder="https://company.atlassian.net"
 
-{
-jiraForm.formState.errors
-.base_url
-.message
-}
+                disabled={readOnly}
 
-</p>
+                {...jiraForm.register(
 
-)
+                  "base_url"
 
-}
+                )}
 
+              />
 
-</div>
 
+              <p className="text-sm text-red-500">
 
+                {
 
+                jiraForm.formState.errors
 
+                .base_url?.message
 
+                }
 
-<div className="space-y-2">
+              </p>
 
 
-<Label>
-Admin Email
-</Label>
+            </div>
 
 
-<Input
 
-className="
-border
-border-input
-"
 
 
-placeholder="
-admin@example.com
-"
 
+            <div>
 
-disabled={readOnly}
+              <Label>
 
+                Admin Email
 
-{...
+              </Label>
 
-jiraForm.register(
-"admin_email"
-)
 
-}
+              <Input
 
+                className="border border-border shadow-sm"
 
-/>
+                placeholder="admin@example.com"
 
+                disabled={readOnly}
 
+                {...jiraForm.register(
 
-{
-jiraForm.formState.errors.admin_email && (
+                  "admin_email"
 
-<p className="
-text-sm
-text-red-500
-">
+                )}
 
-{
-jiraForm.formState.errors
-.admin_email
-.message
-}
+              />
 
-</p>
 
-)
+              <p className="text-sm text-red-500">
 
-}
+                {
 
+                jiraForm.formState.errors
 
-</div>
+                .admin_email?.message
 
+                }
 
+              </p>
 
 
+            </div>
 
 
-<div className="space-y-2">
 
 
-<Label>
-API Key
-</Label>
 
 
-<Input
+            <div>
 
-type="password"
 
+              <Label>
 
-className="
-border
-border-input
-"
+                API Key
 
+              </Label>
 
-placeholder="
-Enter Jira API token
-"
 
+              <Input
 
-disabled={readOnly}
+                type="password"
 
+                className="border border-border shadow-sm"
 
-{...
+                placeholder="Enter Jira API token"
 
-jiraForm.register(
-"api_key"
-)
+                disabled={readOnly}
 
-}
+                {...jiraForm.register(
 
+                  "api_key"
 
-/>
+                )}
 
+              />
 
 
-{
-jiraForm.formState.errors.api_key && (
 
-<p className="
-text-sm
-text-red-500
-">
+              <p className="text-sm text-red-500">
 
-{
-jiraForm.formState.errors
-.api_key
-.message
-}
+                {
 
-</p>
+                jiraForm.formState.errors
 
-)
+                .api_key?.message
 
-}
+                }
 
+              </p>
 
-</div>
 
 
+            </div>
 
 
 
-{
-jiraError && (
 
-<div className="
-text-red-600
-">
 
-{jiraError}
+            {
 
-</div>
+            jiraError && (
 
-)
+              <p className="text-red-600">
 
-}
+                {jiraError}
 
+              </p>
 
+            )
 
+            }
 
-{
-!readOnly && (
 
-<Button
 
-type="submit"
 
 
-disabled={
-jiraMutation.isPending
-}
 
->
+            {!readOnly && (
 
-{
-jiraMutation.isPending
-?
-"Saving..."
-:
-"Save Jira"
-}
+              <Button
 
+                type="submit"
 
-</Button>
+                disabled={jiraMutation.isPending}
 
-)
+              >
 
-}
+                {
 
+                jiraMutation.isPending
 
+                ? "Saving..."
 
-</form>
+                : "Save Jira"
 
+                }
 
+              </Button>
 
-</CardContent>
+            )}
 
 
-</Card>
 
 
 
+          </form>
 
 
+        </CardContent>
 
-{/* =========================
-        Notion
-========================= */}
 
+      </Card>
 
-<Card>
+      {/* Notion */}
 
+      <Card>
 
-<CardHeader>
+        <CardHeader>
 
-<CardTitle>
-Notion
-</CardTitle>
+          <CardTitle>
 
-</CardHeader>
+            Notion
 
+          </CardTitle>
 
+        </CardHeader>
 
-<CardContent className="space-y-5">
 
 
-<Status
+        <CardContent className="space-y-6">
 
-connected={
-!!workspaceState.notion_connected_at
-}
 
+          <div>
 
-date={
-workspaceState.notion_connected_at
-}
+            <p className="font-medium">
 
-/>
+              Status
 
+            </p>
 
 
 
+            {
 
-<form
+            workspace?.notion_connected_at
 
-className="space-y-4"
+            ? (
 
+              <span className="text-green-600">
 
-onSubmit={
+                Connected
 
-notionForm.handleSubmit(
+              </span>
 
-(values: NotionFormValues)=>{
+            )
 
-setNotionError("");
+            : (
 
-notionMutation.mutate(values);
+              <span className="text-muted-foreground">
 
-}
+                Not Connected
 
-)
+              </span>
 
-}
+            )
 
->
+            }
 
 
+          </div>
 
 
-<div className="space-y-2">
 
 
-<Label>
-API Key
-</Label>
 
+          {
 
+          workspace?.notion_connected_at && (
 
-<Input
+            <p className="text-sm text-muted-foreground">
 
+              Connected at:
 
-type="password"
+              {" "}
 
+              {
 
-className="
-border
-border-input
-"
+              new Date(
 
+                workspace.notion_connected_at
 
-placeholder="
-Enter Notion integration token
-"
+              ).toLocaleString()
 
+              }
 
-disabled={readOnly}
+            </p>
 
+          )
 
+          }
 
-{...
 
-notionForm.register(
-"api_key"
-)
 
-}
 
 
-/>
 
+          <form
 
+            className="space-y-4"
 
-{
-notionForm.formState.errors.api_key && (
+            onSubmit={
 
-<p className="
-text-sm
-text-red-500
-">
+              notionForm.handleSubmit(
 
-{
-notionForm.formState.errors
-.api_key
-.message
-}
+                (values) =>
 
-</p>
+                notionMutation.mutate(values)
 
-)
+              )
 
-}
+            }
 
+          >
 
 
-</div>
 
 
+            <div>
 
 
+              <Label>
 
-{
-notionError && (
+                API Key
 
-<div className="
-text-red-600
-">
+              </Label>
 
-{notionError}
 
-</div>
 
-)
+              <Input
 
-}
+                type="password"
 
+                className="border border-border shadow-sm"
 
+                placeholder="Enter Notion integration token"
 
+                disabled={readOnly}
 
+                {...notionForm.register(
 
-{
-!readOnly && (
+                  "api_key"
 
-<Button
+                )}
 
-type="submit"
+              />
 
 
-disabled={
-notionMutation.isPending
-}
 
->
+              <p className="text-sm text-red-500">
 
-{
-notionMutation.isPending
-?
-"Saving..."
-:
-"Save Notion"
-}
+                {
 
+                notionForm.formState.errors
 
-</Button>
+                .api_key?.message
 
-)
+                }
 
-}
+              </p>
 
 
 
-</form>
+            </div>
 
+            {
 
+            notionError && (
 
-</CardContent>
+              <p className="text-red-600">
 
+                {notionError}
 
-</Card>
+              </p>
 
+            )
 
+            }
 
-</div>
+            {!readOnly && (
 
+              <Button
 
-);
+                type="submit"
 
-}
+                disabled={notionMutation.isPending}
 
+              >
 
+                {
 
+                notionMutation.isPending
 
+                ? "Saving..."
 
-function Status({
+                : "Save Notion"
 
-connected,
+                }
 
-date,
+              </Button>
 
-}:{
+            )}
 
-connected:boolean;
+          </form>
 
-date:string|null;
+        </CardContent>
 
-}){
+      </Card>
 
+    </div>
 
-return (
-
-<div>
-
-
-<p className="font-medium">
-
-Status
-
-</p>
-
-
-
-
-<p
-
-className={
-connected
-?
-"text-green-600"
-:
-"text-gray-500"
-}
-
->
-
-{
-
-connected
-?
-"Connected"
-:
-"Not Connected"
-
-}
-
-
-</p>
-
-
-
-
-
-{
-
-date && (
-
-<p className="
-text-sm
-text-muted-foreground
-">
-
-Connected at:
-
-{" "}
-
-{
-
-new Date(date)
-.toLocaleString()
-
-}
-
-
-</p>
-
-)
-
-}
-
-
-
-</div>
-
-
-);
-
+  );
 
 }
