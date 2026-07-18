@@ -3090,7 +3090,8 @@ def test_get_workspace_dashboard_forbidden_for_non_member(db_session, mock_user)
     response = client.get(f"/workspaces/{workspace.id}/dashboard")
 
     assert response.status_code == 403
-    def test_get_workspace_dashboard_unrecognized_status_collapses_to_unknown(db_session, mock_user):
+
+def test_get_workspace_dashboard_unrecognized_status_collapses_to_unknown(db_session, mock_user):
     owner = User(username="owner9", email="owner9@example.com", is_verified=True)
     db_session.add(owner)
     db_session.flush()
