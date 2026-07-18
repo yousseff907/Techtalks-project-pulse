@@ -739,6 +739,8 @@ def send_summary_to_email(request: SummaryEmailRequest, workspace_id: int, curre
 
 	return {"message" : f"Summary has been sent to {recipient}"}
 
+from sqlalchemy import and_, or_
+
 @router.get("/workspaces/{workspace_id}/data", status_code=200)
 def get_workspace_data(
     workspace_id: int,
@@ -787,22 +789,38 @@ def get_workspace_data(
     if not integration:
         return []
 
-    latest_fetched_at = (
-        db.query(func.max(WorkspaceData.fetched_at))
+    # Compute latest fetched_at PER SOURCE, not globally.
+    # Jira and Notion (etc.) sync independently, so a global MAX(fetched_at)
+    # would only match whichever source synced most recently and silently
+    # drop the others.
+    latest_per_source = (
+        db.query(
+            WorkspaceData.source,
+            func.max(WorkspaceData.fetched_at).label("max_fetched_at"),
+        )
         .filter(
             WorkspaceData.integration_id == integration.workspace_id
         )
-        .scalar()
+        .group_by(WorkspaceData.source)
+        .all()
     )
 
-    if latest_fetched_at is None:
+    if not latest_per_source:
         return []
+
+    latest_conditions = [
+        and_(
+            WorkspaceData.source == src,
+            WorkspaceData.fetched_at == max_fetched_at,
+        )
+        for src, max_fetched_at in latest_per_source
+    ]
 
     query = (
         db.query(WorkspaceData)
         .filter(
             WorkspaceData.integration_id == integration.workspace_id,
-            WorkspaceData.fetched_at == latest_fetched_at,
+            or_(*latest_conditions),
         )
     )
 
