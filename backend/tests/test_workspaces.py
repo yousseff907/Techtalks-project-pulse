@@ -1125,8 +1125,17 @@ def test_list_workspaces_returns_user_workspaces(db_session, mock_user):
     assert len(body) == 2
 
     workspaces_by_id = {ws["id"]: ws for ws in body}
-    assert workspaces_by_id[ws1.id] == {"id": ws1.id, "name": "First WS", "role": "owner"}
-    assert workspaces_by_id[ws2.id] == {"id": ws2.id, "name": "Second WS", "role": "admin"}
+    assert workspaces_by_id[ws1.id]["id"] == ws1.id
+    assert workspaces_by_id[ws1.id]["name"] == "First WS"
+    assert workspaces_by_id[ws1.id]["role"] == "owner"
+    assert workspaces_by_id[ws1.id]["member_count"] == 1
+    assert "created_at" in workspaces_by_id[ws1.id]
+    assert workspaces_by_id[ws2.id]["id"] == ws2.id
+    assert workspaces_by_id[ws2.id]["name"] == "Second WS"
+    assert workspaces_by_id[ws2.id]["role"] == "admin"
+    assert workspaces_by_id[ws2.id]["member_count"] == 1
+    assert "created_at" in workspaces_by_id[ws2.id]
+   
 
 
 def test_list_workspaces_returns_204_when_no_memberships(db_session, mock_user):
@@ -1136,9 +1145,10 @@ def test_list_workspaces_returns_204_when_no_memberships(db_session, mock_user):
 
     mock_user.id = user.id
     response = client.get("/workspaces")
+    
+    assert response.status_code == 200
+    assert response.json() == []
 
-    assert response.status_code == 204
-    assert response.content == b"" 
 
 def test_list_workspaces_excludes_other_users_workspaces(db_session, mock_user):
     user = User(username="me_user", email="me@example.com", is_verified=True)
@@ -1156,8 +1166,8 @@ def test_list_workspaces_excludes_other_users_workspaces(db_session, mock_user):
     mock_user.id = user.id
     response = client.get("/workspaces")
 
-    assert response.status_code == 204
-    assert response.content == b""
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 def test_list_workspaces_includes_correct_role_per_workspace(db_session, mock_user):
