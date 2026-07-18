@@ -1,3 +1,5 @@
+from typing import Literal, Optional
+
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from utils.database import get_db, Session
@@ -14,7 +16,7 @@ from config import APP_BASE_URL
 from services.sync.tasks import sync_workspace_data
 from utils.redis_client import redis_client
 from sqlalchemy import and_, func, or_
-from typing import Literal, Optional
+from typing import Literal
 from services.ai_summary import generate_workspace_summary
 from services.email_service import send_summary_email
 
@@ -30,7 +32,7 @@ class UpdateWorkspaceNameRequest(BaseModel):
 	name: str
 
 class UpdateMemberRoleRequest(BaseModel):
-	role: Literal["admin", "member"]
+    role: Literal["admin", "member"]
 
 class SummaryEmailRequest(BaseModel):
 	summary: str
@@ -565,34 +567,64 @@ def list_workspace_members(
 
     return results
 
-
 @router.patch("/workspaces/{workspace_id}/members/{user_id}")
-def	promote_demote_user(request: UpdateMemberRoleRequest, workspace_id: int, user_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-	workspace = (db.query(Workspace).filter(Workspace.id == workspace_id).first())
-	if not workspace:
-		raise HTTPException(status_code=404, detail="Workspace not found")
+def promote_demote_user(
+    request: UpdateMemberRoleRequest,
+    workspace_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
 
-	membership = (db.query(WorkspaceMember).filter(	WorkspaceMember.workspace_id == workspace_id, WorkspaceMember.user_id == current_user.id).first())
-	if not membership:
-		raise HTTPException(status_code=403, detail="You are not a member of this workspace")
+    membership = (
+        db.query(WorkspaceMember)
+        .filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == current_user.id,
+        )
+        .first()
+    )
 
-	if membership.role not in ["owner", "admin"]:
-		raise HTTPException(status_code=403, detail="Only workspace owners or admins can change membership status")
+    if not membership:
+        raise HTTPException(status_code=403, detail="You are not a member of this workspace")
 
-	membership = (db.query(WorkspaceMember).filter(	WorkspaceMember.workspace_id == workspace_id, WorkspaceMember.user_id == user_id).first())
-	if not membership:
-		raise HTTPException(status_code=404, detail="Target user is not a member of this workspace")
+    if membership.role not in ["owner", "admin"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Only workspace owners or admins can change membership status",
+        )
 
-	if membership.role == "owner":
-		raise HTTPException(status_code=400, detail="ownership must be transferred first via Leave Workspace or a separate transfer mechanism, this endpoint does not handle ownership transfer")
+    membership = (
+        db.query(WorkspaceMember)
+        .filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == user_id,
+        )
+        .first()
+    )
 
-	membership.role = request.role
-	db.commit()
-	db.refresh(membership)
-	
-	return {"user_id": user_id, "workspace_id" : workspace_id, "role" : membership.role}
+    if not membership:
+        raise HTTPException(status_code=404, detail="Target user is not a member of this workspace")
 
-#Remove member from workspace
+    if membership.role == "owner":
+        raise HTTPException(
+            status_code=400,
+            detail="ownership must be transferred first via Leave Workspace or a separate transfer mechanism, this endpoint does not handle ownership transfer",
+        )
+
+    membership.role = request.role
+    db.commit()
+    db.refresh(membership)
+
+    return {
+        "user_id": user_id,
+        "workspace_id": workspace_id,
+        "role": membership.role,
+    }
+
 
 @router.delete("/workspaces/{workspace_id}/members/{user_id}", status_code=200)
 def remove_workspace_member(
@@ -601,17 +633,10 @@ def remove_workspace_member(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    workspace = (
-        db.query(Workspace)
-        .filter(Workspace.id == workspace_id)
-        .first()
-    )
+    workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
 
     if not workspace:
-        raise HTTPException(
-            status_code=404,
-            detail="Workspace not found",
-        )
+        raise HTTPException(status_code=404, detail="Workspace not found")
 
     caller_membership = (
         db.query(WorkspaceMember)
@@ -667,7 +692,105 @@ def remove_workspace_member(
     return {"message": "Member removed successfully"}
 
 
-#AI Summary Generation Endpoint
+@router.get("/workspaces/{workspace_id}/data", status_code=200)
+def get_workspace_data(
+    workspace_id: int,
+    type: Optional[str] = None,
+    source: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    workspace = (
+        db.query(Workspace)
+        .filter(Workspace.id == workspace_id)
+        .first()
+    )
+
+    if not workspace:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace not found",
+        )
+
+    membership = (
+        db.query(WorkspaceMember)
+        .filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not membership:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this workspace",
+        )
+
+    integration = (
+        db.query(WorkspaceIntegrations)
+        .filter(
+            WorkspaceIntegrations.workspace_id == workspace_id
+        )
+        .first()
+    )
+
+    if not integration:
+        return []
+
+    latest_fetched_at = (
+        db.query(func.max(WorkspaceData.fetched_at))
+        .filter(
+           WorkspaceData.integration_id == integration.id        )
+        .scalar()
+    )
+
+    if latest_fetched_at is None:
+        return []
+
+    query = (
+        db.query(WorkspaceData)
+        .filter(
+            WorkspaceData.integration_id == integration.workspace_id,
+            WorkspaceData.fetched_at == latest_fetched_at,
+        )
+    )
+
+    if type:
+        query = query.filter(WorkspaceData.type == type)
+
+    if source:
+        query = query.filter(WorkspaceData.source == source)
+
+    if status:
+        query = query.filter(WorkspaceData.status == status)
+
+    if search:
+        query = query.filter(
+            WorkspaceData.title.ilike(f"%{search}%")
+        )
+
+    rows = query.order_by(WorkspaceData.id).all()
+
+    return [
+        {
+            "id": row.id,
+            "integration_id": row.integration_id,
+            "type": row.type,
+            "source": row.source,
+            "title": row.title,
+            "status": row.status,
+            "payload": row.payload,
+            "fetched_at": row.fetched_at,
+        }
+        for row in rows
+    ]
+    
+
+
+# AI Summary Generation Endpoint
 
 @router.post("/workspaces/{workspace_id}/summary", status_code=200)
 def generate_summary(
