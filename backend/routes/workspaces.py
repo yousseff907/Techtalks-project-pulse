@@ -852,3 +852,145 @@ def get_workspace_data(
         }
         for row in rows
     ]
+    # Dashboard Aggregation Endpoint
+
+TASK_STATUSES = ["TODO", "IN_PROGRESS", "DONE"]
+
+
+@router.get("/workspaces/{workspace_id}/dashboard", status_code=200)
+def get_workspace_dashboard(
+    workspace_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    workspace = (
+        db.query(Workspace)
+        .filter(Workspace.id == workspace_id)
+        .first()
+    )
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    membership = (
+        db.query(WorkspaceMember)
+        .filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not membership:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this workspace",
+        )
+
+    empty_by_status = {status: 0 for status in TASK_STATUSES}
+    empty_response = {
+        "total_tasks": 0,
+        "by_status": dict(empty_by_status),
+        "by_source": {},
+        "completion_rate": 0,
+        "workload": {},
+    }
+
+    integration = (
+        db.query(WorkspaceIntegrations)
+        .filter(WorkspaceIntegrations.workspace_id == workspace_id)
+        .first()
+    )
+
+    if not integration:
+        return empty_response
+
+    # Same "current data batch" pattern as Get Current Workspace Data and
+    # List Workspace Members: use the latest fetched_at per source so that
+    # data from different sync runs is never mixed together.
+    latest_jira = (
+        db.query(func.max(WorkspaceData.fetched_at))
+        .filter(
+            WorkspaceData.integration_id == integration.workspace_id,
+            WorkspaceData.type == "task",
+            WorkspaceData.source == "jira",
+        )
+        .scalar()
+    )
+
+    latest_notion = (
+        db.query(func.max(WorkspaceData.fetched_at))
+        .filter(
+            WorkspaceData.integration_id == integration.workspace_id,
+            WorkspaceData.type == "task",
+            WorkspaceData.source == "notion",
+        )
+        .scalar()
+    )
+
+    filters = []
+
+    if latest_jira:
+        filters.append(
+            and_(
+                WorkspaceData.source == "jira",
+                WorkspaceData.fetched_at == latest_jira,
+            )
+        )
+
+    if latest_notion:
+        filters.append(
+            and_(
+                WorkspaceData.source == "notion",
+                WorkspaceData.fetched_at == latest_notion,
+            )
+        )
+
+    if not filters:
+        # No sync has run yet (or no task data has been fetched)
+        return empty_response
+
+    tasks = (
+        db.query(WorkspaceData)
+        .filter(
+            WorkspaceData.integration_id == integration.workspace_id,
+            WorkspaceData.type == "task",
+            or_(*filters),
+        )
+        .all()
+    )
+
+    if not tasks:
+        return empty_response
+
+    by_status = dict(empty_by_status)
+    by_source = {}
+    workload = {}
+
+    for task in tasks:
+        status = task.status if task.status in TASK_STATUSES else "UNKNOWN"
+        by_status[status] = by_status.get(status, 0) + 1
+
+        source_counts = by_source.setdefault(
+            task.source, {s: 0 for s in TASK_STATUSES}
+        )
+        source_counts[status] = source_counts.get(status, 0) + 1
+        source_counts["total"] = source_counts.get("total", 0) + 1
+
+        payload = task.payload or {}
+        assignee = payload.get("assignee")
+        assignee = assignee.strip() if isinstance(assignee, str) else assignee
+        assignee_key = assignee if assignee else "Unassigned"
+        workload[assignee_key] = workload.get(assignee_key, 0) + 1
+
+    total_tasks = len(tasks)
+    done_count = by_status.get("DONE", 0)
+    completion_rate = (
+        round((done_count / total_tasks) * 100, 2) if total_tasks else 0
+    )
+
+    return {
+        "total_tasks": total_tasks,
+        "by_status": by_status,
+        "by_source": by_source,
+        "completion_rate": completion_rate,
+        "workload": workload,
+    }
