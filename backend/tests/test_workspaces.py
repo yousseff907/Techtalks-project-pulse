@@ -1964,11 +1964,7 @@ def test_generate_workspace_summary_success(db_session: Session, mock_user: Mock
     assert response.status_code == 200
 
     data = response.json()
-    titles = [item["title"] for item in data]
-
-    assert len(data) == 1
-    assert "New Task" in titles
-    assert "Old Task" not in titles
+    assert data == "Workspace summary"
 
 
 
