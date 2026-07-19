@@ -702,8 +702,13 @@ def generate_summary(
             detail="You are not a member of this workspace",
         )
 
+    cooldown_key = f"summary_cooldown:{workspace_id}"
+    if redis_client.exists(cooldown_key):
+        raise HTTPException(status_code=429, detail="A summary was recently generated, please wait an hour since last trigger to try again")
+
     try:
         summary = generate_workspace_summary(workspace_id, db)
+        redis_client.setex(cooldown_key, 3600, "1")
 
     except RuntimeError:
         raise HTTPException(
