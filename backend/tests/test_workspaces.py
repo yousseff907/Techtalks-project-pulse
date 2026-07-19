@@ -3148,3 +3148,157 @@ def test_get_workspace_dashboard_unrecognized_status_collapses_to_unknown(db_ses
     assert body["by_source"]["jira"]["UNKNOWN"] == 1
     assert body["by_source"]["notion"]["UNKNOWN"] == 1
     assert "BLOCKED" not in body["by_status"]
+
+#AI Summary Rate Limiting tests
+
+def test_generate_summary_cooldown_active_returns_429(db_session, mock_user, mock_redis_client):
+    owner = User(username="summary_cooldown_owner", email="summary_cooldown_owner@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Summary Cooldown WS",
+        created_by=owner.id,
+        invite_code="summarycooldown1",
+        invite_link="link_summarycooldown1",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.commit()
+
+    mock_redis_client.exists.return_value = True
+
+    mock_user.id = owner.id
+    with patch("routes.workspaces.generate_workspace_summary") as mock_generate:
+        response = client.post(f"/workspaces/{workspace.id}/summary")
+
+    assert response.status_code == 429
+    assert response.json()["detail"] == "A summary was recently generated, please wait an hour since last trigger to try again"
+    mock_generate.assert_not_called()
+    mock_redis_client.setex.assert_not_called()
+
+
+def test_generate_summary_checks_correct_cooldown_key(db_session, mock_user, mock_redis_client):
+    owner = User(username="summary_cooldown_owner2", email="summary_cooldown_owner2@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Summary Cooldown Key Check WS",
+        created_by=owner.id,
+        invite_code="summarycooldown2",
+        invite_link="link_summarycooldown2",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.commit()
+
+    mock_redis_client.exists.return_value = False
+
+    mock_user.id = owner.id
+    with patch("routes.workspaces.generate_workspace_summary", return_value="Workspace summary"):
+        client.post(f"/workspaces/{workspace.id}/summary")
+
+    mock_redis_client.exists.assert_called_once_with(f"summary_cooldown:{workspace.id}")
+
+
+def test_generate_summary_sets_cooldown_on_success(db_session, mock_user, mock_redis_client):
+    owner = User(username="summary_cooldown_owner3", email="summary_cooldown_owner3@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Summary Cooldown Success WS",
+        created_by=owner.id,
+        invite_code="summarycooldown3",
+        invite_link="link_summarycooldown3",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.commit()
+
+    mock_redis_client.exists.return_value = False
+
+    mock_user.id = owner.id
+    with patch("routes.workspaces.generate_workspace_summary", return_value="Workspace summary"):
+        response = client.post(f"/workspaces/{workspace.id}/summary")
+
+    assert response.status_code == 200
+    mock_redis_client.setex.assert_called_once_with(f"summary_cooldown:{workspace.id}", 3600, "1")
+
+
+def test_generate_summary_does_not_set_cooldown_on_failure(db_session, mock_user, mock_redis_client):
+    owner = User(username="summary_cooldown_owner4", email="summary_cooldown_owner4@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace = Workspace(
+        name="Summary Cooldown Failure WS",
+        created_by=owner.id,
+        invite_code="summarycooldown4",
+        invite_link="link_summarycooldown4",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
+    db_session.commit()
+
+    mock_redis_client.exists.return_value = False
+
+    mock_user.id = owner.id
+    with patch("routes.workspaces.generate_workspace_summary", side_effect=RuntimeError("Gemini API unavailable")):
+        response = client.post(f"/workspaces/{workspace.id}/summary")
+
+    assert response.status_code == 502
+    mock_redis_client.setex.assert_not_called()
+
+
+def test_generate_summary_cooldown_is_workspace_scoped(db_session, mock_user, mock_redis_client):
+    owner = User(username="summary_cooldown_owner5", email="summary_cooldown_owner5@example.com", is_verified=True)
+    db_session.add(owner)
+    db_session.flush()
+
+    workspace_a = Workspace(
+        name="Summary Cooldown WS A",
+        created_by=owner.id,
+        invite_code="summarycooldown5a",
+        invite_link="link_summarycooldown5a",
+    )
+    workspace_b = Workspace(
+        name="Summary Cooldown WS B",
+        created_by=owner.id,
+        invite_code="summarycooldown5b",
+        invite_link="link_summarycooldown5b",
+    )
+    db_session.add_all([workspace_a, workspace_b])
+    db_session.flush()
+
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace_a.id, role="owner"))
+    db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace_b.id, role="owner"))
+    db_session.commit()
+
+    # Cooldown active for workspace_a only
+    def exists_side_effect(key):
+        return key == f"summary_cooldown:{workspace_a.id}"
+
+    mock_redis_client.exists.side_effect = exists_side_effect
+
+    mock_user.id = owner.id
+
+    with patch("routes.workspaces.generate_workspace_summary") as mock_generate:
+        response_a = client.post(f"/workspaces/{workspace_a.id}/summary")
+
+    assert response_a.status_code == 429
+    mock_generate.assert_not_called()
+
+    with patch("routes.workspaces.generate_workspace_summary", return_value="Workspace summary"):
+        response_b = client.post(f"/workspaces/{workspace_b.id}/summary")
+
+    assert response_b.status_code == 200
