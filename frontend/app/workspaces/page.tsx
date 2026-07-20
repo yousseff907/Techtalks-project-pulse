@@ -328,9 +328,15 @@ export default function WorkspacesPage() {
 					<p className="text-muted-foreground">Select a workspace or create a new one.</p>
 				</div>
 
-				<Link href="/workspaces/create">
-					<Button>Create Workspace</Button>
-				</Link>
+				<div className="flex gap-2">
+					<Link href="/workspaces/join">
+						<Button variant="outline">Join Workspace</Button>
+					</Link>
+
+					<Link href="/workspaces/create">
+						<Button>Create Workspace</Button>
+					</Link>
+				</div>
 			</div>
 
 			{isLoading && (
@@ -351,9 +357,15 @@ export default function WorkspacesPage() {
 				<Card>
 					<CardContent className="space-y-4 p-8">
 						<p>You don't belong to any workspaces yet.</p>
-						<Link href="/workspaces/create">
-							<Button>Create your first workspace</Button>
-						</Link>
+						<div className="flex gap-2">
+							<Link href="/workspaces/create">
+								<Button>Create your first workspace</Button>
+							</Link>
+
+							<Link href="/workspaces/join">
+								<Button variant="outline">Join a workspace</Button>
+							</Link>
+						</div>
 					</CardContent>
 				</Card>
 			)}
