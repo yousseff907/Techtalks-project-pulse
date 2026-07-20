@@ -67,7 +67,7 @@ export default function JoinWorkspacePage() {
 		mutationFn: (data: JoinWorkspaceFormData) => joinWorkspaceRequest(data, accessToken),
 		onSuccess: (data) => {
 			queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-			router.push(`/workspaces/${data.workspace_id}`);
+			router.push(`/workspaces/${data.workspace_id}/dashboard`);
 		},
 	});
 
