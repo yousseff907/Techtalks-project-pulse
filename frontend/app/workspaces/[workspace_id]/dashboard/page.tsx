@@ -42,6 +42,86 @@ interface Workspace {
     member_count: number;
 }
 
+interface DashboardResponse {
+  total_tasks: number;
+  by_status: {
+    TODO: number;
+    IN_PROGRESS: number;
+    DONE: number;
+  };
+  by_source: Record<
+    string,
+    {
+      TODO: number;
+      IN_PROGRESS: number;
+      DONE: number;
+      total: number;
+    }
+  >;
+  completion_rate: number;
+  workload: Record<string, number>;
+}
+
+interface DashboardTask {
+    id: number;
+    integration_id: number;
+    type: string;
+    source: string;
+    title: string | null;
+    status: string | null;
+    payload: {
+        id?: string;
+        key?: string;
+        title?: string;
+        assignee?: string;
+        due_date?: string;
+    } | null;
+    fetched_at: string;
+}
+
+interface CurrentUser {
+    id: number;
+    username: string;
+    email: string;
+    is_verified: boolean;
+    created_at: string;
+}
+
+async function fetchDashboard(
+  workspaceId: string,
+  token: string | null
+): Promise<DashboardResponse> {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/workspaces/${workspaceId}/dashboard`,
+    {
+      headers: authHeaders(token),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch dashboard");
+  }
+
+  return response.json();
+}
+
+async function fetchTasks(
+    workspaceId: string,
+    token: string | null
+): Promise<DashboardTask[]> {
+    const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/workspaces/${workspaceId}/data?type=task`,
+        {
+            headers: authHeaders(token),
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch tasks");
+    }
+
+    return response.json();
+}
 
 function authHeaders(token: string | null) {
     return {
@@ -84,6 +164,23 @@ async function fetchSyncStatus(
 
     if (!response.ok) {
         throw new Error("Failed to fetch sync status");
+    }
+
+    return response.json();
+}
+
+async function fetchCurrentUser(
+    token: string | null
+): Promise<CurrentUser> {
+    const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/users/me`,
+        {
+            headers: authHeaders(token),
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch current user");
     }
 
     return response.json();
@@ -194,6 +291,7 @@ export default function DashboardPage() {
     });
 
 
+
     const syncMutation = useMutation({
         mutationFn: () =>
             triggerSync(
@@ -203,10 +301,15 @@ export default function DashboardPage() {
 
         onSuccess: () => {
             queryClient.invalidateQueries({
-                queryKey: [
-                    "sync-status",
-                    workspaceId,
-                ],
+                queryKey: ["sync-status", workspaceId],
+            });
+
+            queryClient.invalidateQueries({
+                queryKey: ["dashboard", workspaceId],
+            });
+
+            queryClient.invalidateQueries({
+                queryKey: ["tasks", workspaceId],
             });
         },
     });
@@ -236,96 +339,24 @@ export default function DashboardPage() {
         },
     });
 
-    // Mock Data
-    // Replace with backend queries once dashboard testing finishes.
-    const mockDashboard = {
-        stats: {
-            openTasks: 41,
-            completedTasks: 108,
-            inProgressTasks: 12,
-            teamMembers: 8,
-        },
+    const {
+        data: currentUser,
+        isLoading: currentUserLoading,
+    } = useQuery({
+        queryKey: ["current-user"],
+        queryFn: () => fetchCurrentUser(accessToken),
+        enabled: !!accessToken,
+    });
 
-        tasks: [
-            {
-                id: 1,
-                title: "Implement Dashboard",
-                status: "In Progress",
-            },
-            {
-                id: 2,
-                title: "Fix Sync Endpoint",
-                status: "Done",
-            },
-            {
-                id: 3,
-                title: "Review Pull Request",
-                status: "Todo",
-            },
-        ],
-    };
-
-    const mockWorkspace = {
-        id: Number(workspaceId),
-        name: "Project Pulse",
-        role: "Owner",
-        member_count: 8,
-    };
-
-    const mockWorkspaces = [
-        mockWorkspace,
-        {
-            id: Number(workspaceId) + 1,
-            name: "Marketing",
-            role: "Admin",
-            member_count: 5,
-        },
-    ];
-
-    const mockUser = {
-        username: "Paul",
-        role: "Owner",
-    };
- 
-    const filteredTasks = useMemo(() => {
-        const term = search.trim().toLowerCase();
-
-        if (!term) {
-            return mockDashboard.tasks;
-        }
-
-        return mockDashboard.tasks.filter((task) =>
-            task.title.toLowerCase().includes(term) ||
-            task.status.toLowerCase().includes(term)
-        );
-    }, [mockDashboard.tasks, search]);
-
-    useEffect(() => {
-        if (mockWorkspaces.length === 0) {
-            router.replace("/workspaces/create");
-        }
-    }, [router]);
-
-    
-
-
-    // BACKEND INTEGRATION 
-
-    /*
 
     const {
         data: workspaces = [],
+        isLoading: workspacesLoading,
     } = useQuery({
         queryKey: ["workspaces"],
         queryFn: () => fetchWorkspaces(accessToken),
         enabled: !!accessToken,
     });
-
-    const currentWorkspace =
-        workspaces.find(
-            (workspace) =>
-                workspace.id === Number(workspaceId)
-        ) ?? workspaces[0];
 
     useEffect(() => {
         if (!accessToken) return;
@@ -347,8 +378,33 @@ export default function DashboardPage() {
         }
     }, [workspaces, accessToken, workspaceId, router]);
 
+
+    const currentWorkspace =
+        workspaces.find(
+            (workspace) =>
+                workspace.id === Number(workspaceId)
+        ) ?? workspaces[0];
+
+
+    const {
+        data: tasks = [],
+        isLoading: tasksLoading,
+    } = useQuery({
+        queryKey: ["tasks", workspaceId],
+        queryFn: () =>
+            fetchTasks(
+                workspaceId,
+                accessToken
+            ),
+        enabled: !!accessToken,
+    });
+
+
+    
+
     const {
         data: dashboard,
+        isLoading: dashboardLoading,
     } = useQuery({
         queryKey: ["dashboard", workspaceId],
         queryFn: () =>
@@ -359,20 +415,30 @@ export default function DashboardPage() {
         enabled: !!accessToken,
     });
 
+
     const filteredTasks = useMemo(() => {
         const term = search.trim().toLowerCase();
 
         if (!term) {
-            return dashboard.tasks;
+            return tasks;
         }
 
-        return dashboard.tasks.filter((task) =>
-            task.title.toLowerCase().includes(term) ||
-            task.status.toLowerCase().includes(term)
-        );
-    }, [dashboard, search]);
+        return tasks.filter((task) => {
+            const title =
+                task.title ??
+                task.payload?.title ??
+                "";
 
-    */
+            const status =
+                task.status ?? "";
+
+            return (
+                title.toLowerCase().includes(term) ||
+                status.toLowerCase().includes(term)
+            );
+        });
+    }, [tasks, search]);
+
 
     const lastSyncedText = useMemo(() => {
         if (!syncStatus?.last_synced_at) {
@@ -384,14 +450,25 @@ export default function DashboardPage() {
         ).toLocaleString();
     }, [syncStatus]);
 
-    if (syncLoading) {
+
+    const isLoading =
+        syncLoading ||
+        workspacesLoading ||
+        dashboardLoading ||
+        tasksLoading ||
+        currentUserLoading;
+
+ 
+
+
+    if (isLoading) {
         return (
             <>
                 <AppSidebar
-                    currentWorkspace={mockWorkspace}
-                    workspaces={mockWorkspaces}
-                    username={mockUser.username}
-                    userRole={mockUser.role}
+                    currentWorkspace={currentWorkspace}
+                    workspaces={[]}
+                    username={currentUser?.username ?? ""}
+                    userRole={currentWorkspace?.role}
                     activePage="dashboard"
                     onWorkspaceSelect={() => {}}
                     onManageWorkspaces={() => {}}
@@ -407,10 +484,8 @@ export default function DashboardPage() {
                     <DashboardTopBar
                         title="Dashboard"
                         lastSynced="Loading..."
-                        syncLoading
                         search=""
                         setSearch={() => {}}
-                        onSync={() => {}}
                     />
 
                     <DashboardSkeleton />
@@ -419,14 +494,20 @@ export default function DashboardPage() {
         );
     }
 
+    
+
+    
+
+    
+
     if (syncError) {
         return (
             <>
                 <AppSidebar
-                    currentWorkspace={mockWorkspace}
-                    workspaces={mockWorkspaces}
-                    username={mockUser.username}
-                    userRole={mockUser.role}
+                    currentWorkspace={currentWorkspace}
+                    workspaces={workspaces}
+                    username={currentUser?.username ?? ""}
+                    userRole={currentWorkspace?.role}
                     activePage="dashboard"
                     onWorkspaceSelect={(id) =>
                         router.push(`/workspaces/${id}/dashboard`)
@@ -475,11 +556,10 @@ export default function DashboardPage() {
     return (
         <main className="ml-72 flex flex-1 flex-col">
             <AppSidebar
-                //correctly link later
-                currentWorkspace={mockWorkspace}
-                workspaces={mockWorkspaces}
-                username={mockUser.username}
-                userRole={mockUser.role}
+                currentWorkspace={currentWorkspace}
+                workspaces={workspaces}
+                username={currentUser?.username ?? ""}
+                userRole={currentWorkspace?.role}
                 activePage="dashboard"
                 onWorkspaceSelect={(id) =>
                     router.push(`/workspaces/${id}/dashboard`)
@@ -512,10 +592,8 @@ export default function DashboardPage() {
                 <DashboardTopBar
                     title="Dashboard"
                     lastSynced={lastSyncedText}
-                    syncLoading={syncMutation.isPending}
                     search={search}
                     setSearch={setSearch}
-                    onSync={() => syncMutation.mutate()}
                 />
 
                 <div className="space-y-8 p-8">
@@ -524,25 +602,25 @@ export default function DashboardPage() {
                         {[
                             {
                                 title: "Open Tasks",
-                                value: mockDashboard.stats.openTasks,
+                                value: dashboard?.by_status.TODO,
                                 subtitle: "Across Jira & Notion",
                                 icon: ListTodo,
                             },
                             {
                                 title: "Completed",
-                                value: mockDashboard.stats.completedTasks,
+                                value: dashboard?.by_status.DONE,
                                 subtitle: "Latest sync",
                                 icon: CheckCircle2,
                             },
                             {
                                 title: "In Progress",
-                                value: mockDashboard.stats.inProgressTasks,
+                                value: dashboard?.by_status.IN_PROGRESS,
                                 subtitle: "Currently active",
                                 icon: Clock3,
                             },
                             {
                                 title: "Team Members",
-                                value: mockDashboard.stats.teamMembers,
+                                value: currentWorkspace?.member_count,
                                 subtitle: "Workspace users",
                                 icon: Users,
                             },
@@ -550,7 +628,7 @@ export default function DashboardPage() {
                             <StatCard
                                 key={stat.title}
                                 title={stat.title}
-                                value={stat.value}
+                                value={stat.value ?? 0}
                                 subtitle={stat.subtitle}
                                 icon={stat.icon}
                             />
@@ -560,7 +638,14 @@ export default function DashboardPage() {
                     <div className="grid gap-8 xl:grid-cols-[2fr_1fr]">
 
                         <RecentTasksTable
-                            tasks={filteredTasks}
+                            tasks={filteredTasks.map((task) => ({
+                                id: task.id,
+                                title:
+                                    task.title ??
+                                    task.payload?.title ??
+                                    "Untitled Task",
+                                status: task.status ?? "TODO",
+                            }))}
                         />
 
                         <div className="space-y-8">

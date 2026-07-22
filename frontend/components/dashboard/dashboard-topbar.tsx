@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, RefreshCw, Search } from "lucide-react";
+import { Bell, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,23 +8,19 @@ import { Input } from "@/components/ui/input";
 interface DashboardTopBarProps {
     title: string;
     lastSynced: string;
-    syncLoading: boolean;
     search: string;
     setSearch: (value: string) => void;
-    onSync: () => void;
 }
 
 export function DashboardTopBar({
     title,
     lastSynced,
-    syncLoading,
     search,
     setSearch,
-    onSync,
 }: DashboardTopBarProps) {
     return (
-        <header className="flex items-center justify-between border-b bg-background px-8 py-5">
-            <div>
+        <header className="flex items-center border-b bg-background px-8 py-5">
+            <div className="flex flex-1 flex-col">
                 <h1 className="text-3xl font-bold tracking-tight">
                     {title}
                 </h1>
@@ -34,27 +30,8 @@ export function DashboardTopBar({
                 </p>
             </div>
 
-            <div className="flex items-center gap-4">
-
-                <Button
-                    onClick={onSync}
-                    disabled={syncLoading}
-                    className="gap-2"
-                >
-                    <RefreshCw
-                        className={`h-4 w-4 ${
-                            syncLoading
-                                ? "animate-spin"
-                                : ""
-                        }`}
-                    />
-
-                    {syncLoading
-                        ? "Syncing..."
-                        : "Sync Now"}
-                </Button>
-
-                <div className="relative">
+            <div className="flex flex-1 justify-center">
+                <div className="relative w-full max-w-md">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 
                     <Input
@@ -63,17 +40,18 @@ export function DashboardTopBar({
                             setSearch(e.target.value)
                         }
                         placeholder="Search tasks..."
-                        className="w-72 border-2 border-muted-foreground/20 bg-background pl-10 shadow-sm focus-visible:border-primary"
-                    />
+                        className="w-lg rounded-xl border border-border/60 bg-background pl-10 shadow-sm transition-all hover:border-border focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
+                        />
                 </div>
+            </div>
 
+            <div className="flex flex-1 justify-end">
                 <Button
                     variant="outline"
                     size="icon"
                 >
                     <Bell className="h-5 w-5" />
                 </Button>
-
             </div>
         </header>
     );
