@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
@@ -70,7 +71,17 @@ export default function CreateWorkspacePage() {
 		<AuthCard
 			title="Create your workspace"
 			description="Give your workspace a name to start aggregating your team's Jira and Notion data."
-			footer="You can create up to 5 workspaces."
+			footer={
+				<>
+					You can create up to 5 workspaces. Have an invite code?{" "}
+					<Link
+						href="/workspaces/join"
+						className="font-medium text-primary underline-offset-4 hover:underline"
+					>
+						Join a workspace
+					</Link>
+				</>
+			}
 		>
 			<form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 				<div className="space-y-2">
