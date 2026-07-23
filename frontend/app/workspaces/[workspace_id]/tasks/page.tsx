@@ -11,7 +11,6 @@ import {
   FileText,
   Inbox,
   LayoutGrid,
-  Loader2,
   Search,
   User,
 } from "lucide-react";
@@ -245,6 +244,74 @@ function AssigneeCell({ assignee }: { assignee: string | null | undefined }) {
   );
 }
 
+const SKELETON_ROW_COUNT = 8;
+
+function TaskTableSkeleton() {
+  return (
+    <Card className="mt-6 overflow-hidden p-0">
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead className="bg-muted/60">
+              <tr className="border-b">
+                <th className="px-6 py-4 text-left text-sm font-semibold">
+                  Task
+                </th>
+
+                <th className="px-6 py-4 text-left text-sm font-semibold">
+                  Source
+                </th>
+
+                <th className="px-6 py-4 text-left text-sm font-semibold">
+                  Assignee
+                </th>
+
+                <th className="px-6 py-4 text-left text-sm font-semibold">
+                  Status
+                </th>
+
+                <th className="px-6 py-4 text-left text-sm font-semibold">
+                  Due date
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {Array.from({ length: SKELETON_ROW_COUNT }).map((_, i) => (
+                <tr key={i} className="border-b">
+                  <td className="px-6 py-5 align-middle">
+                    <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+                    <div className="mt-2 h-3 w-20 animate-pulse rounded bg-muted" />
+                  </td>
+
+                  <td className="px-6 py-5 align-middle">
+                    <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
+                  </td>
+
+                  <td className="px-6 py-5 align-middle">
+                    <div className="flex items-center gap-2">
+                      <div className="size-7 animate-pulse rounded-full bg-muted" />
+                      <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+                    </div>
+                  </td>
+
+                  <td className="px-6 py-5 align-middle">
+                    <div className="h-6 w-20 animate-pulse rounded-full bg-muted" />
+                  </td>
+
+                  <td className="px-6 py-5 align-middle">
+                    <div className="h-4 w-28 animate-pulse rounded bg-muted" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -253,7 +320,7 @@ export default function TasksPage() {
   const params = useParams();
   const workspaceId = params.workspace_id as string;
 
-  const accessToken = useAuthStore((state: any) => state.accessToken);
+  const accessToken = useAuthStore((state: { accessToken: any; }) => state.accessToken);
 
   const [sourceFilter, setSourceFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -307,11 +374,11 @@ export default function TasksPage() {
   return (
     <main className="mx-auto max-w-7xl p-8">
       <Link
-        href={`/workspaces/${workspaceId}`}
+        href={`/workspaces/${workspaceId}/dashboard`}
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" />
-        Back to workspace
+        Back to dashboard
       </Link>
 
       <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -373,14 +440,7 @@ export default function TasksPage() {
         )}
       </div>
 
-      {isLoading && (
-        <Card className="mt-6">
-          <CardContent className="flex items-center justify-center gap-2 p-12 text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            <p>Loading tasks...</p>
-          </CardContent>
-        </Card>
-      )}
+      {isLoading && <TaskTableSkeleton />}
 
       {isError && (
         <Card className="mt-6">
