@@ -27,6 +27,32 @@ interface VerifyResponse {
 	token_type: string;
 }
 
+interface Workspace {
+	id: number;
+	name: string;
+	role: string;
+	member_count: number;
+}
+
+async function fetchWorkspaces(
+	token: string
+): Promise<Workspace[]> {
+	const response = await fetch(
+		`${process.env.NEXT_PUBLIC_API_URL}/workspaces`,
+		{
+			headers: {
+				Authorization: `Bearer ${token}`,
+			},
+		}
+	);
+
+	if (!response.ok) {
+		throw new Error("Failed to load workspaces");
+	}
+
+	return response.json();
+}
+
 async function verifyRequest(payload: { email: string; code: string }): Promise<VerifyResponse> {
 	const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/verify`, {
 		method: "POST",
@@ -69,9 +95,25 @@ function VerifyPageContent() {
 
 	const verifyMutation = useMutation({
 		mutationFn: (data: VerifyFormData) => verifyRequest({ email, code: data.code }),
-		onSuccess: (data) => {
+		onSuccess: async (data) => {
 			setAccessToken(data.access_token);
-			router.push("/");
+
+			try {
+				const workspaces = await fetchWorkspaces(
+					data.access_token
+				);
+
+				if (workspaces.length === 0) {
+					router.replace("/workspaces/create");
+					return;
+				}
+
+				router.replace(
+					`/workspaces/${workspaces[0].id}/dashboard`
+				);
+			} catch {
+				router.replace("/workspaces/create");
+			}
 		},
 	});
 

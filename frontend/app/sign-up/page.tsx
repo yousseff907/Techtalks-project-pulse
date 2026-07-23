@@ -72,6 +72,7 @@ export default function SignUpPage() {
 						id="username"
 						placeholder="Alex Morgan"
 						{...register("username")}
+						className="border border-border shadow-sm"
 					/>
 					{errors.username && (
 						<p className="text-sm text-destructive">{errors.username.message}</p>
@@ -85,6 +86,7 @@ export default function SignUpPage() {
 						type="email"
 						placeholder="you@company.com"
 						{...register("email")}
+						className="border border-border shadow-sm"
 					/>
 					{errors.email && (
 						<p className="text-sm text-destructive">{errors.email.message}</p>
