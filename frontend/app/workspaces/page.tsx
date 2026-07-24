@@ -376,7 +376,7 @@ export default function WorkspacesPage() {
 						<Card
 							key={workspace.id}
 							className="cursor-pointer transition hover:border-primary"
-							onClick={() => router.push(`/workspaces/${workspace.id}`)}
+							onClick={() => router.push(`/workspaces/${workspace.id}/dashboard`)}
 						>
 							<CardContent className="flex items-center justify-between p-6">
 								<div>
@@ -392,7 +392,7 @@ export default function WorkspacesPage() {
 									className="flex items-center gap-2"
 									onClick={(e) => e.stopPropagation()}
 								>
-									<Button variant="outline" onClick={() => router.push(`/workspaces/${workspace.id}`)}>
+									<Button variant="outline" onClick={() => router.push(`/workspaces/${workspace.id}/dashboard`)}>
 										Open
 									</Button>
 									<WorkspaceActionsMenu

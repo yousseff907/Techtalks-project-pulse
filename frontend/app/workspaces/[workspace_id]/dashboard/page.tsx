@@ -265,9 +265,8 @@ export default function DashboardPage() {
 
     const workspaceId = params.workspace_id as string;
 
-    const accessToken = useAuthStore(
-        (state) => state.accessToken
-    );
+    const accessToken = useAuthStore((state) => state.accessToken);
+    const hasHydrated = useAuthStore((state) => state.hasHydrated);
 
     const queryClient = useQueryClient();
 
@@ -359,7 +358,9 @@ export default function DashboardPage() {
     });
 
     useEffect(() => {
+        if (!hasHydrated) return;
         if (!accessToken) return;
+        if (workspacesLoading) return;
 
         if (workspaces.length === 0) {
             router.replace("/workspaces/create");
@@ -367,8 +368,7 @@ export default function DashboardPage() {
         }
 
         const exists = workspaces.some(
-            (workspace) =>
-                workspace.id === Number(workspaceId)
+            (workspace) => workspace.id === Number(workspaceId)
         );
 
         if (!exists) {
@@ -376,7 +376,14 @@ export default function DashboardPage() {
                 `/workspaces/${workspaces[0].id}/dashboard`
             );
         }
-    }, [workspaces, accessToken, workspaceId, router]);
+    }, [
+        hasHydrated,
+        accessToken,
+        workspacesLoading,
+        workspaces,
+        workspaceId,
+        router,
+    ]);
 
 
     const currentWorkspace =
@@ -452,6 +459,7 @@ export default function DashboardPage() {
 
 
     const isLoading =
+        !hasHydrated ||
         syncLoading ||
         workspacesLoading ||
         dashboardLoading ||
