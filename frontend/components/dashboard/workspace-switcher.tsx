@@ -12,7 +12,7 @@ interface Workspace {
 }
 
 interface WorkspaceSwitcherProps {
-    currentWorkspace: Workspace;
+    currentWorkspace?: Workspace;
     workspaces: Workspace[];
 
     onWorkspaceSelect: (workspaceId: number) => void;
@@ -60,12 +60,13 @@ export function WorkspaceSwitcher({
             >
                 <div className="text-left">
                     <p className="font-semibold">
-                        {currentWorkspace.name}
+                        {currentWorkspace?.name ?? "Loading workspace..."}
                     </p>
 
                     <p className="text-xs text-muted-foreground">
-                        {currentWorkspace.role} •{" "}
-                        {currentWorkspace.member_count} members
+                        {currentWorkspace
+                            ? `${currentWorkspace.role} • ${currentWorkspace.member_count} members`
+                            : ""}
                     </p>
                 </div>
 
@@ -87,7 +88,7 @@ export function WorkspaceSwitcher({
                                 onWorkspaceSelect(workspace.id);
                             }}
                             className={`mb-1 flex w-full flex-col rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted ${
-                                workspace.id === currentWorkspace.id
+                                workspace.id === currentWorkspace?.id
                                     ? "bg-primary/10 text-primary"
                                     : ""
                             }`}
@@ -119,5 +120,3 @@ export function WorkspaceSwitcher({
         </div>
     );
 }
-
-
