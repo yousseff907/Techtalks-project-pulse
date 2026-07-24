@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -88,6 +88,15 @@ function VerifyPageContent() {
 	const searchParams = useSearchParams();
 	const email = searchParams.get("email") ?? "";
 	const setAccessToken = useAuthStore((state) => state.setAccessToken);
+
+	// This page runs mid-authentication (after register/login, before a token
+	// exists), so it guards on the email param rather than an access token.
+	// Reaching it without an email means the register/login step was skipped.
+	useEffect(() => {
+		if (!email) {
+			router.replace("/sign-in");
+		}
+	}, [email, router]);
 
 	const { register, handleSubmit, formState: { errors } } = useForm<VerifyFormData>({
 		resolver: zodResolver(verifySchema),
