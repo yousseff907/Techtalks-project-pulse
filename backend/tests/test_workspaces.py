@@ -794,7 +794,7 @@ def test_get_workspace_details_created_by_deleted_user(db_session, mock_user):
 	# Simulate created_by referencing a user that no longer exists,
 	# e.g. via ON DELETE SET NULL from a path outside normal account deletion.
 	workspace.created_by = None
-	db_session.commit()
+	db_session.flush()
 
 	mock_user.id = member_user.id
 	response = client.get(f"/workspaces/{workspace.id}")
