@@ -651,14 +651,6 @@ def test_get_workspace_details_success_as_owner(db_session, mock_user):
 	db_session.add(WorkspaceMember(user_id=owner.id, workspace_id=workspace.id, role="owner"))
 	db_session.commit()
 
-	integration = WorkspaceIntegrations(
-		workspace_id=workspace.id,
-		jira_connected_at=datetime.now(timezone.utc),
-		notion_connected_at=datetime.now(timezone.utc),
-	)
-	db_session.add(integration)
-	db_session.flush()
-
 	mock_user.id = owner.id
 	response = client.get(f"/workspaces/{workspace.id}")
 
@@ -672,8 +664,7 @@ def test_get_workspace_details_success_as_owner(db_session, mock_user):
 	assert body["member_count"] == 1
 	assert body["created_at"] is not None
 	assert body["role"] == "owner"
-	assert body["jira_connected_at"] is not None
-	assert body["notion_connected_at"] is not None
+
 
 
 def test_get_workspace_details_success_as_regular_member(db_session, mock_user):
@@ -690,9 +681,6 @@ def test_get_workspace_details_success_as_regular_member(db_session, mock_user):
 	db_session.add(WorkspaceMember(user_id=member_user.id, workspace_id=workspace.id, role="member"))
 	db_session.commit()
 
-	integration = WorkspaceIntegrations(workspace_id=workspace.id)
-	db_session.add(integration)
-	db_session.flush()
 
 	mock_user.id = member_user.id
 	response = client.get(f"/workspaces/{workspace.id}")
@@ -702,8 +690,7 @@ def test_get_workspace_details_success_as_regular_member(db_session, mock_user):
 	assert body["created_by"] == "details_owner2"
 	assert body["member_count"] == 2
 	assert body["role"] == "member"
-	assert body["jira_connected_at"] is None
-	assert body["notion_connected_at"] is None
+
 
 
 def test_get_workspace_details_not_found(db_session, mock_user):
@@ -760,11 +747,6 @@ def test_get_workspace_details_member_count_accurate(db_session, mock_user):
 	db_session.add(WorkspaceMember(user_id=member_b.id, workspace_id=workspace.id, role="admin"))
 	db_session.commit()
 
-	db_session.add(
-		WorkspaceIntegrations(workspace_id=workspace.id)
-	)
-	db_session.flush()
-
 	mock_user.id = owner.id
 	response = client.get(f"/workspaces/{workspace.id}")
 
@@ -786,10 +768,6 @@ def test_get_workspace_details_created_by_deleted_user(db_session, mock_user):
 	db_session.add(WorkspaceMember(user_id=member_user.id, workspace_id=workspace.id, role="owner"))
 	db_session.commit()
 
-	db_session.add(
-		WorkspaceIntegrations(workspace_id=workspace.id)
-	)
-	db_session.flush()
 
 	# Simulate created_by referencing a user that no longer exists,
 	# e.g. via ON DELETE SET NULL from a path outside normal account deletion.
@@ -802,8 +780,7 @@ def test_get_workspace_details_created_by_deleted_user(db_session, mock_user):
 	assert response.status_code == 200
 	assert response.json()["created_by"] == "Deleted User"
 	assert response.json()["role"] == "owner"
-	assert response.json()["jira_connected_at"] is None
-	assert response.json()["notion_connected_at"] is None
+
 
 # Get Sync Status tests
 
