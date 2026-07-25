@@ -23,6 +23,9 @@ import api from "@/lib/api";
 
 import { jiraSchema, notionSchema } from "@/lib/validation";
 
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+
 type JiraFormValues = z.infer<typeof jiraSchema>;
 type NotionFormValues = z.infer<typeof notionSchema>;
 
@@ -122,12 +125,22 @@ export default function IntegrationsPage() {
 
   return (
     <div className="max-w-4xl mx-auto py-10 space-y-8">
-      <h1 className="text-3xl font-bold">Workspace Integrations</h1>
+      <Link
+          href={`/workspaces/${workspace_id}/dashboard`}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
+          <ArrowLeft className="size-3.5" />
+          Back to dashboard
+      </Link>
+
+      <h1 className="text-3xl font-bold">
+          Workspace Integrations
+      </h1>
 
       {readOnly && (
-        <div className="rounded-md border border-red-300 bg-red-50 p-4 text-red-600">
-          You don't have permission to edit integrations.
-        </div>
+          <div className="rounded-md border border-red-300 bg-red-50 p-4 text-red-600">
+              You don't have permission to edit integrations.
+          </div>
       )}
 
       {/* Jira */}

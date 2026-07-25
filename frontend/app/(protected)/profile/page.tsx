@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth-store";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 interface UserProfile {
 	id: number;
@@ -147,6 +149,13 @@ export default function ProfilePage() {
 
 	return (
 		<main className="mx-auto max-w-2xl space-y-6 p-8">
+			<Link
+				href="/workspaces"
+				className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+			>
+				<ArrowLeft className="size-3.5" />
+				Back to workspaces
+			</Link>
 			<div>
 				<h1 className="text-3xl font-bold">Profile & Settings</h1>
 				<p className="text-muted-foreground">Manage your account details.</p>
