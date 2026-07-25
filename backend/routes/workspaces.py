@@ -24,7 +24,7 @@ class CreateWorkspaceRequest(BaseModel):
 	name: str
 
 class JoinWorkspaceRequest(BaseModel):
-    invite_code: str
+	invite_code: str
 
 class UpdateWorkspaceNameRequest(BaseModel):
 	name: str
@@ -72,167 +72,167 @@ def	create_workspace(request: CreateWorkspaceRequest, db: Session = Depends(get_
 
 @router.post("/workspaces/join")
 def join_workspace(
-    body: JoinWorkspaceRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+	body: JoinWorkspaceRequest,
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
 ):
-    if is_dangerous(body.invite_code):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid invite code",
-        )
+	if is_dangerous(body.invite_code):
+		raise HTTPException(
+			status_code=400,
+			detail="Invalid invite code",
+		)
 
-    workspace = (
-        db.query(Workspace)
-        .filter(Workspace.invite_code == body.invite_code)
-        .first()
-    )
-    if not workspace:
-        raise HTTPException(
-            status_code=404,
-            detail="Invalid invite code",
-        )
+	workspace = (
+		db.query(Workspace)
+		.filter(Workspace.invite_code == body.invite_code)
+		.first()
+	)
+	if not workspace:
+		raise HTTPException(
+			status_code=404,
+			detail="Invalid invite code",
+		)
 
-    existing_member = (
-        db.query(WorkspaceMember)
-        .filter(
-            WorkspaceMember.user_id == current_user.id,
-            WorkspaceMember.workspace_id == workspace.id,
-        )
-        .first()
-    )
-    if existing_member:
-        raise HTTPException(
-            status_code=409,
-            detail="You are already a member of this workspace",
-        )
+	existing_member = (
+		db.query(WorkspaceMember)
+		.filter(
+			WorkspaceMember.user_id == current_user.id,
+			WorkspaceMember.workspace_id == workspace.id,
+		)
+		.first()
+	)
+	if existing_member:
+		raise HTTPException(
+			status_code=409,
+			detail="You are already a member of this workspace",
+		)
 
-    workspace_count = (
-        db.query(WorkspaceMember)
-        .filter(WorkspaceMember.user_id == current_user.id)
-        .count()
-    )
-    if workspace_count >= 5:
-        raise HTTPException(
-            status_code=400,
-            detail="You have reached the maximum number of workspaces (5)",
-        )
+	workspace_count = (
+		db.query(WorkspaceMember)
+		.filter(WorkspaceMember.user_id == current_user.id)
+		.count()
+	)
+	if workspace_count >= 5:
+		raise HTTPException(
+			status_code=400,
+			detail="You have reached the maximum number of workspaces (5)",
+		)
 
-    new_member = WorkspaceMember(
-        user_id=current_user.id,
-        workspace_id=workspace.id,
-        role="member",
-    )
-    db.add(new_member)
-    db.commit()
-    db.refresh(new_member)
-    return {
-        "workspace_id": workspace.id,
-        "name": workspace.name,
-    }
+	new_member = WorkspaceMember(
+		user_id=current_user.id,
+		workspace_id=workspace.id,
+		role="member",
+	)
+	db.add(new_member)
+	db.commit()
+	db.refresh(new_member)
+	return {
+		"workspace_id": workspace.id,
+		"name": workspace.name,
+	}
 
 
 @router.get("/workspaces")
 def list_workspaces(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
 ):
-    member_count = (
-        db.query(func.count(WorkspaceMember.user_id))
-        .filter(WorkspaceMember.workspace_id == Workspace.id)
-        .correlate(Workspace)
-        .scalar_subquery()
-    )
+	member_count = (
+		db.query(func.count(WorkspaceMember.user_id))
+		.filter(WorkspaceMember.workspace_id == Workspace.id)
+		.correlate(Workspace)
+		.scalar_subquery()
+	)
 
-    rows = (
-        db.query(
-            Workspace.id,
-            Workspace.name,
-            Workspace.created_at,
-            WorkspaceMember.role,
-            member_count.label("member_count"),
-        )
-        .join(
-            WorkspaceMember,
-            WorkspaceMember.workspace_id == Workspace.id,
-        )
-        .filter(
-            WorkspaceMember.user_id == current_user.id,
-        )
-        .all()
-    )
+	rows = (
+		db.query(
+			Workspace.id,
+			Workspace.name,
+			Workspace.created_at,
+			WorkspaceMember.role,
+			member_count.label("member_count"),
+		)
+		.join(
+			WorkspaceMember,
+			WorkspaceMember.workspace_id == Workspace.id,
+		)
+		.filter(
+			WorkspaceMember.user_id == current_user.id,
+		)
+		.all()
+	)
 
-    if not rows:
-        return []
+	if not rows:
+		return []
 
-    return [
-        {
-            "id": row.id,
-            "name": row.name,
-            "role": row.role,
-            "member_count": row.member_count,
-            "created_at": row.created_at,
-        }
-        for row in rows
-    ]
+	return [
+		{
+			"id": row.id,
+			"name": row.name,
+			"role": row.role,
+			"member_count": row.member_count,
+			"created_at": row.created_at,
+		}
+		for row in rows
+	]
 
 @router.delete("/workspaces/{workspace_id}/leave", status_code=200)
 def leave_workspace(
-    workspace_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+	workspace_id: int,
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
 ):
-    workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
-    if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+	workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+	if not workspace:
+		raise HTTPException(status_code=404, detail="Workspace not found")
 
-    membership = (
-        db.query(WorkspaceMember)
-        .filter(
-            WorkspaceMember.workspace_id == workspace_id,
-            WorkspaceMember.user_id == current_user.id,
-        )
-        .first()
-    )
-    if not membership:
-        raise HTTPException(
-            status_code=404,
-            detail="You are not a member of this workspace",
-        )
+	membership = (
+		db.query(WorkspaceMember)
+		.filter(
+			WorkspaceMember.workspace_id == workspace_id,
+			WorkspaceMember.user_id == current_user.id,
+		)
+		.first()
+	)
+	if not membership:
+		raise HTTPException(
+			status_code=404,
+			detail="You are not a member of this workspace",
+		)
 
-    if membership.role == "owner":
-        next_admin = (
-            db.query(WorkspaceMember)
-            .filter(
-                WorkspaceMember.workspace_id == workspace_id,
-                WorkspaceMember.role == "admin",
-            )
-            .order_by(WorkspaceMember.joined_at.asc())
-            .first()
-        )
-        if not next_admin:
-            total_members = (
-                db.query(WorkspaceMember)
-                .filter(WorkspaceMember.workspace_id == workspace_id)
-                .count()
-            )
-            if total_members <= 1:
-                db.delete(workspace)
-                db.commit()
-                return {"message": "Workspace deleted successfully as you were the only member"}
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Please promote a member to admin or delete the workspace before leaving",
-                )
-        
-        workspace.created_by = next_admin.user_id
-        next_admin.role = "owner"
+	if membership.role == "owner":
+		next_admin = (
+			db.query(WorkspaceMember)
+			.filter(
+				WorkspaceMember.workspace_id == workspace_id,
+				WorkspaceMember.role == "admin",
+			)
+			.order_by(WorkspaceMember.joined_at.asc())
+			.first()
+		)
+		if not next_admin:
+			total_members = (
+				db.query(WorkspaceMember)
+				.filter(WorkspaceMember.workspace_id == workspace_id)
+				.count()
+			)
+			if total_members <= 1:
+				db.delete(workspace)
+				db.commit()
+				return {"message": "Workspace deleted successfully as you were the only member"}
+			else:
+				raise HTTPException(
+					status_code=400,
+					detail="Please promote a member to admin or delete the workspace before leaving",
+				)
+		
+		workspace.created_by = next_admin.user_id
+		next_admin.role = "owner"
 
-    db.delete(membership)
-    db.commit()
-    
-    return {"message": "Successfully left the workspace"}
+	db.delete(membership)
+	db.commit()
+	
+	return {"message": "Successfully left the workspace"}
 
 @router.patch("/workspaces/{workspace_id}", status_code=200)
 def	update_workspace_name(request: UpdateWorkspaceNameRequest, workspace_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -249,10 +249,10 @@ def	update_workspace_name(request: UpdateWorkspaceNameRequest, workspace_id: int
 
 	if is_dangerous(request.name):
 		raise HTTPException(status_code=400, detail="Invalid name, contains dangerous characters")
-      
+	  
 	if is_blank(request.name):
 		raise HTTPException(status_code=400, detail="Name cannot be blank")
-      
+	  
 	workspace.name = request.name.strip()
 	db.commit()
 	db.refresh(workspace)
@@ -263,82 +263,82 @@ def	update_workspace_name(request: UpdateWorkspaceNameRequest, workspace_id: int
 
 @router.delete("/workspaces/{workspace_id}", status_code=200)
 def delete_workspace(
-    workspace_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+	workspace_id: int,
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
 ):
-    workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
-    if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+	workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+	if not workspace:
+		raise HTTPException(status_code=404, detail="Workspace not found")
 
-    membership = (
-        db.query(WorkspaceMember)
-        .filter(
-            WorkspaceMember.workspace_id == workspace_id,
-            WorkspaceMember.user_id == current_user.id,
-        )
-        .first()
-    )
+	membership = (
+		db.query(WorkspaceMember)
+		.filter(
+			WorkspaceMember.workspace_id == workspace_id,
+			WorkspaceMember.user_id == current_user.id,
+		)
+		.first()
+	)
 
-    if not membership or membership.role != "owner":
-        raise HTTPException(
-            status_code=403,
-            detail="Only the workspace owner can delete this workspace",
-        )
+	if not membership or membership.role != "owner":
+		raise HTTPException(
+			status_code=403,
+			detail="Only the workspace owner can delete this workspace",
+		)
 
-    db.delete(workspace)
-    db.commit()
+	db.delete(workspace)
+	db.commit()
 
-    return {"message": "Workspace deleted successfully"}
+	return {"message": "Workspace deleted successfully"}
 
 
 @router.patch("/workspaces/{workspace_id}/invite-code", status_code=200)
 def rotate_workspace_invite_code(
-    workspace_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+	workspace_id: int,
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
 ):
-    workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
-    if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+	workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+	if not workspace:
+		raise HTTPException(status_code=404, detail="Workspace not found")
 
-    membership = (
-        db.query(WorkspaceMember)
-        .filter(
-            WorkspaceMember.workspace_id == workspace_id,
-            WorkspaceMember.user_id == current_user.id,
-        )
-        .first()
-    )
+	membership = (
+		db.query(WorkspaceMember)
+		.filter(
+			WorkspaceMember.workspace_id == workspace_id,
+			WorkspaceMember.user_id == current_user.id,
+		)
+		.first()
+	)
 
-    if not membership or membership.role not in ["owner", "admin"]:
-        raise HTTPException(
-            status_code=403,
-            detail="Only workspace owners or admins can rotate the invite code",
-        )
+	if not membership or membership.role not in ["owner", "admin"]:
+		raise HTTPException(
+			status_code=403,
+			detail="Only workspace owners or admins can rotate the invite code",
+		)
 
-    workspace_count = db.query(Workspace).count()
+	workspace_count = db.query(Workspace).count()
 
-    for _ in range(0, workspace_count + 1):
-        new_code = secrets.token_urlsafe(16)
-        workspace.invite_code = new_code
-        workspace.invite_link = APP_BASE_URL + "/" + new_code
+	for _ in range(0, workspace_count + 1):
+		new_code = secrets.token_urlsafe(16)
+		workspace.invite_code = new_code
+		workspace.invite_link = APP_BASE_URL + "/" + new_code
 
-        try:
-            db.commit()
-            db.refresh(workspace)
-            return {
-                "workspace_id": workspace.id,
-                "invite_code": workspace.invite_code,
-                "invite_link": workspace.invite_link,
-            }
-        except IntegrityError:
-            db.rollback()
+		try:
+			db.commit()
+			db.refresh(workspace)
+			return {
+				"workspace_id": workspace.id,
+				"invite_code": workspace.invite_code,
+				"invite_link": workspace.invite_link,
+			}
+		except IntegrityError:
+			db.rollback()
 
-    raise HTTPException(
-        status_code=500,
-        detail="Failed to generate a unique invite code",
-    )
+	raise HTTPException(
+		status_code=500,
+		detail="Failed to generate a unique invite code",
+	)
 
 @router.get("/workspaces/{workspace_id}", status_code=200)
 def	get_workspace_details(workspace_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -352,15 +352,32 @@ def	get_workspace_details(workspace_id: int, db: Session = Depends(get_db), curr
 
 	created_by = db.query(User).filter(User.id == workspace.created_by).first()
 
+	integration = (
+		db.query(WorkspaceIntegrations)
+		.filter(
+			WorkspaceIntegrations.workspace_id == workspace_id
+		)
+		.first()
+	)
+
 	member_count = db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace_id).count()
 
-	return {"id" : workspace_id,
-			"name" : workspace.name,
-			"invite_code" : workspace.invite_code,
-			"invite_link" : workspace.invite_link,
-			"created_by" : created_by.username if created_by else "Deleted User",
-			"created_at" : workspace.created_at,
-			"member_count" : member_count}
+	return {
+		"id": workspace.id,
+		"name": workspace.name,
+		"invite_code": workspace.invite_code,
+		"invite_link": workspace.invite_link,
+		"created_by": created_by.username if created_by else "Deleted User",
+		"created_at": workspace.created_at,
+		"member_count": member_count,
+		"role": membership.role,
+		"jira_connected_at": (
+			integration.jira_connected_at if integration else None
+		),
+		"notion_connected_at": (
+			integration.notion_connected_at if integration else None
+		),
+	}
 
 @router.get("/workspaces/{workspace_id}/sync/status", status_code=200)
 def get_sync_status(workspace_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -407,163 +424,163 @@ def	workspace_manual_sync(workspace_id: int, current_user: User = Depends(get_cu
 
 @router.get("/workspaces/{workspace_id}/members", status_code=200)
 def list_workspace_members(
-    workspace_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+	workspace_id: int,
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
 ):
-    workspace = (
-        db.query(Workspace)
-        .filter(Workspace.id == workspace_id)
-        .first()
-    )
-    if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+	workspace = (
+		db.query(Workspace)
+		.filter(Workspace.id == workspace_id)
+		.first()
+	)
+	if not workspace:
+		raise HTTPException(status_code=404, detail="Workspace not found")
 
-    membership = (
-        db.query(WorkspaceMember)
-        .filter(
-            WorkspaceMember.workspace_id == workspace_id,
-            WorkspaceMember.user_id == current_user.id,
-        )
-        .first()
-    )
-    if not membership:
-        raise HTTPException(
-            status_code=403,
-            detail="You are not a member of this workspace",
-        )
+	membership = (
+		db.query(WorkspaceMember)
+		.filter(
+			WorkspaceMember.workspace_id == workspace_id,
+			WorkspaceMember.user_id == current_user.id,
+		)
+		.first()
+	)
+	if not membership:
+		raise HTTPException(
+			status_code=403,
+			detail="You are not a member of this workspace",
+		)
 
-    integration = (
-        db.query(WorkspaceIntegrations)
-        .filter(WorkspaceIntegrations.workspace_id == workspace_id)
-        .first()
-    )
+	integration = (
+		db.query(WorkspaceIntegrations)
+		.filter(WorkspaceIntegrations.workspace_id == workspace_id)
+		.first()
+	)
 
-    members = (
-        db.query(WorkspaceMember, User)
-        .join(User, WorkspaceMember.user_id == User.id)
-        .filter(WorkspaceMember.workspace_id == workspace_id)
-        .all()
-    )
+	members = (
+		db.query(WorkspaceMember, User)
+		.join(User, WorkspaceMember.user_id == User.id)
+		.filter(WorkspaceMember.workspace_id == workspace_id)
+		.all()
+	)
 
-    workspace_users = []
+	workspace_users = []
 
-    if integration:
-        latest_jira = (
-            db.query(func.max(WorkspaceData.fetched_at))
-            .filter(
-                WorkspaceData.integration_id == integration.workspace_id,
-                WorkspaceData.type == "user",
-                WorkspaceData.source == "jira",
-            )
-            .scalar()
-        )
+	if integration:
+		latest_jira = (
+			db.query(func.max(WorkspaceData.fetched_at))
+			.filter(
+				WorkspaceData.integration_id == integration.workspace_id,
+				WorkspaceData.type == "user",
+				WorkspaceData.source == "jira",
+			)
+			.scalar()
+		)
 
-        latest_notion = (
-            db.query(func.max(WorkspaceData.fetched_at))
-            .filter(
-                WorkspaceData.integration_id == integration.workspace_id,
-                WorkspaceData.type == "user",
-                WorkspaceData.source == "notion",
-            )
-            .scalar()
-        )
+		latest_notion = (
+			db.query(func.max(WorkspaceData.fetched_at))
+			.filter(
+				WorkspaceData.integration_id == integration.workspace_id,
+				WorkspaceData.type == "user",
+				WorkspaceData.source == "notion",
+			)
+			.scalar()
+		)
 
-        filters = []
+		filters = []
 
-        if latest_jira:
-            filters.append(
-                and_(
-                    WorkspaceData.source == "jira",
-                    WorkspaceData.fetched_at == latest_jira,
-                )
-            )
+		if latest_jira:
+			filters.append(
+				and_(
+					WorkspaceData.source == "jira",
+					WorkspaceData.fetched_at == latest_jira,
+				)
+			)
 
-        if latest_notion:
-            filters.append(
-                and_(
-                    WorkspaceData.source == "notion",
-                    WorkspaceData.fetched_at == latest_notion,
-                )
-            )
+		if latest_notion:
+			filters.append(
+				and_(
+					WorkspaceData.source == "notion",
+					WorkspaceData.fetched_at == latest_notion,
+				)
+			)
 
-        if filters:
-            workspace_users = (
-                db.query(WorkspaceData)
-                .filter(
-                    WorkspaceData.integration_id == integration.workspace_id,
-                    WorkspaceData.type == "user",
-                    or_(*filters),
-                )
-                .all()
-            )
-    def normalize(value):
-        if not value:
-            return None
-        return str(value).strip().lower()
+		if filters:
+			workspace_users = (
+				db.query(WorkspaceData)
+				.filter(
+					WorkspaceData.integration_id == integration.workspace_id,
+					WorkspaceData.type == "user",
+					or_(*filters),
+				)
+				.all()
+			)
+	def normalize(value):
+		if not value:
+			return None
+		return str(value).strip().lower()
 
-    jira_email = {}
-    jira_name = {}
+	jira_email = {}
+	jira_name = {}
 
-    notion_email = {}
-    notion_name = {}
+	notion_email = {}
+	notion_name = {}
 
-    for row in workspace_users:
-        payload = row.payload or {}
+	for row in workspace_users:
+		payload = row.payload or {}
 
-        email = normalize(payload.get("email"))
-        name = normalize(payload.get("name"))
+		email = normalize(payload.get("email"))
+		name = normalize(payload.get("name"))
 
-        if row.source == "jira":
-            if email:
-                jira_email[email] = payload
-            if name:
-                jira_name[name] = payload
+		if row.source == "jira":
+			if email:
+				jira_email[email] = payload
+			if name:
+				jira_name[name] = payload
 
-        elif row.source == "notion":
-            if email:
-                notion_email[email] = payload
-            if name:
-                notion_name[name] = payload
+		elif row.source == "notion":
+			if email:
+				notion_email[email] = payload
+			if name:
+				notion_name[name] = payload
 
-    def provider_result(match):
-        if not match:
-            return None
+	def provider_result(match):
+		if not match:
+			return None
 
-        return {
-            "id": match.get("id"),
-            "name": match.get("name"),
-            "email": match.get("email"),
-        }
+		return {
+			"id": match.get("id"),
+			"name": match.get("name"),
+			"email": match.get("email"),
+		}
 
-    results = []
+	results = []
 
-    for member, user in members:
-        email = normalize(user.email)
-        username = normalize(user.username)
+	for member, user in members:
+		email = normalize(user.email)
+		username = normalize(user.username)
 
-        jira_match = (
-            jira_email.get(email)
-            or jira_name.get(username)
-        )
+		jira_match = (
+			jira_email.get(email)
+			or jira_name.get(username)
+		)
 
-        notion_match = (
-            notion_email.get(email)
-            or notion_name.get(username)
-        )
+		notion_match = (
+			notion_email.get(email)
+			or notion_name.get(username)
+		)
 
-        results.append(
-            {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "role": member.role,
-                "jira": provider_result(jira_match),
-                "notion": provider_result(notion_match),
-            }
-        )
+		results.append(
+			{
+				"id": user.id,
+				"username": user.username,
+				"email": user.email,
+				"role": member.role,
+				"jira": provider_result(jira_match),
+				"notion": provider_result(notion_match),
+			}
+		)
 
-    return results
+	return results
 
 
 @router.patch("/workspaces/{workspace_id}/members/{user_id}")
@@ -596,129 +613,129 @@ def	promote_demote_user(request: UpdateMemberRoleRequest, workspace_id: int, use
 
 @router.delete("/workspaces/{workspace_id}/members/{user_id}", status_code=200)
 def remove_workspace_member(
-    workspace_id: int,
-    user_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+	workspace_id: int,
+	user_id: int,
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
 ):
-    workspace = (
-        db.query(Workspace)
-        .filter(Workspace.id == workspace_id)
-        .first()
-    )
+	workspace = (
+		db.query(Workspace)
+		.filter(Workspace.id == workspace_id)
+		.first()
+	)
 
-    if not workspace:
-        raise HTTPException(
-            status_code=404,
-            detail="Workspace not found",
-        )
+	if not workspace:
+		raise HTTPException(
+			status_code=404,
+			detail="Workspace not found",
+		)
 
-    caller_membership = (
-        db.query(WorkspaceMember)
-        .filter(
-            WorkspaceMember.workspace_id == workspace_id,
-            WorkspaceMember.user_id == current_user.id,
-        )
-        .first()
-    )
+	caller_membership = (
+		db.query(WorkspaceMember)
+		.filter(
+			WorkspaceMember.workspace_id == workspace_id,
+			WorkspaceMember.user_id == current_user.id,
+		)
+		.first()
+	)
 
-    if not caller_membership:
-        raise HTTPException(
-            status_code=403,
-            detail="You are not a member of this workspace",
-        )
+	if not caller_membership:
+		raise HTTPException(
+			status_code=403,
+			detail="You are not a member of this workspace",
+		)
 
-    if caller_membership.role not in ["owner", "admin"]:
-        raise HTTPException(
-            status_code=403,
-            detail="Only workspace owners or admins can remove members",
-        )
+	if caller_membership.role not in ["owner", "admin"]:
+		raise HTTPException(
+			status_code=403,
+			detail="Only workspace owners or admins can remove members",
+		)
 
-    if current_user.id == user_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Use the Leave Workspace endpoint to remove yourself",
-        )
+	if current_user.id == user_id:
+		raise HTTPException(
+			status_code=400,
+			detail="Use the Leave Workspace endpoint to remove yourself",
+		)
 
-    target_membership = (
-        db.query(WorkspaceMember)
-        .filter(
-            WorkspaceMember.workspace_id == workspace_id,
-            WorkspaceMember.user_id == user_id,
-        )
-        .first()
-    )
+	target_membership = (
+		db.query(WorkspaceMember)
+		.filter(
+			WorkspaceMember.workspace_id == workspace_id,
+			WorkspaceMember.user_id == user_id,
+		)
+		.first()
+	)
 
-    if not target_membership:
-        raise HTTPException(
-            status_code=404,
-            detail="Target user is not a member of this workspace",
-        )
+	if not target_membership:
+		raise HTTPException(
+			status_code=404,
+			detail="Target user is not a member of this workspace",
+		)
 
-    if target_membership.role == "owner":
-        raise HTTPException(
-            status_code=400,
-            detail="Workspace owner cannot be removed",
-        )
+	if target_membership.role == "owner":
+		raise HTTPException(
+			status_code=400,
+			detail="Workspace owner cannot be removed",
+		)
 
-    db.delete(target_membership)
-    db.commit()
+	db.delete(target_membership)
+	db.commit()
 
-    return {"message": "Member removed successfully"}
+	return {"message": "Member removed successfully"}
 
 
 #AI Summary Generation Endpoint
 
 @router.post("/workspaces/{workspace_id}/summary", status_code=200)
 def generate_summary(
-    workspace_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+	workspace_id: int,
+	db: Session = Depends(get_db),
+	current_user: User = Depends(get_current_user),
 ):
-    workspace = (
-        db.query(Workspace)
-        .filter(Workspace.id == workspace_id)
-        .first()
-    )
+	workspace = (
+		db.query(Workspace)
+		.filter(Workspace.id == workspace_id)
+		.first()
+	)
 
-    if not workspace:
-        raise HTTPException(
-            status_code=404,
-            detail="Workspace not found",
-        )
+	if not workspace:
+		raise HTTPException(
+			status_code=404,
+			detail="Workspace not found",
+		)
 
-    membership = (
-        db.query(WorkspaceMember)
-        .filter(
-            WorkspaceMember.workspace_id == workspace_id,
-            WorkspaceMember.user_id == current_user.id,
-        )
-        .first()
-    )
+	membership = (
+		db.query(WorkspaceMember)
+		.filter(
+			WorkspaceMember.workspace_id == workspace_id,
+			WorkspaceMember.user_id == current_user.id,
+		)
+		.first()
+	)
 
-    if not membership:
-        raise HTTPException(
-            status_code=403,
-            detail="You are not a member of this workspace",
-        )
+	if not membership:
+		raise HTTPException(
+			status_code=403,
+			detail="You are not a member of this workspace",
+		)
 
-    cooldown_key = f"summary_cooldown:{workspace_id}"
-    if redis_client.exists(cooldown_key):
-        raise HTTPException(status_code=429, detail="A summary was recently generated, please wait an hour since last trigger to try again")
+	cooldown_key = f"summary_cooldown:{workspace_id}"
+	if redis_client.exists(cooldown_key):
+		raise HTTPException(status_code=429, detail="A summary was recently generated, please wait an hour since last trigger to try again")
 
-    try:
-        summary = generate_workspace_summary(workspace_id, db)
-        redis_client.setex(cooldown_key, 3600, "1")
+	try:
+		summary = generate_workspace_summary(workspace_id, db)
+		redis_client.setex(cooldown_key, 3600, "1")
 
-    except RuntimeError:
-        raise HTTPException(
-            status_code=502,
-            detail="Failed to generate workspace summary",
-        )
+	except RuntimeError:
+		raise HTTPException(
+			status_code=502,
+			detail="Failed to generate workspace summary",
+		)
 
-    return {
-        "summary": summary,
-    }
+	return {
+		"summary": summary,
+	}
 
 @router.post("/workspaces/{workspace_id}/summary/email", status_code=200)
 def send_summary_to_email(request: SummaryEmailRequest, workspace_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -747,255 +764,255 @@ def send_summary_to_email(request: SummaryEmailRequest, workspace_id: int, curre
 
 @router.get("/workspaces/{workspace_id}/data", status_code=200)
 def get_workspace_data(
-    workspace_id: int,
-    type: Optional[str] = None,
-    source: Optional[str] = None,
-    status: Optional[str] = None,
-    search: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+	workspace_id: int,
+	type: Optional[str] = None,
+	source: Optional[str] = None,
+	status: Optional[str] = None,
+	search: Optional[str] = None,
+	db: Session = Depends(get_db),
+	current_user: User = Depends(get_current_user),
 ):
-    workspace = (
-        db.query(Workspace)
-        .filter(Workspace.id == workspace_id)
-        .first()
-    )
+	workspace = (
+		db.query(Workspace)
+		.filter(Workspace.id == workspace_id)
+		.first()
+	)
 
-    if not workspace:
-        raise HTTPException(
-            status_code=404,
-            detail="Workspace not found",
-        )
+	if not workspace:
+		raise HTTPException(
+			status_code=404,
+			detail="Workspace not found",
+		)
 
-    membership = (
-        db.query(WorkspaceMember)
-        .filter(
-            WorkspaceMember.workspace_id == workspace_id,
-            WorkspaceMember.user_id == current_user.id,
-        )
-        .first()
-    )
+	membership = (
+		db.query(WorkspaceMember)
+		.filter(
+			WorkspaceMember.workspace_id == workspace_id,
+			WorkspaceMember.user_id == current_user.id,
+		)
+		.first()
+	)
 
-    if not membership:
-        raise HTTPException(
-            status_code=403,
-            detail="You are not a member of this workspace",
-        )
+	if not membership:
+		raise HTTPException(
+			status_code=403,
+			detail="You are not a member of this workspace",
+		)
 
-    integration = (
-        db.query(WorkspaceIntegrations)
-        .filter(
-            WorkspaceIntegrations.workspace_id == workspace_id
-        )
-        .first()
-    )
+	integration = (
+		db.query(WorkspaceIntegrations)
+		.filter(
+			WorkspaceIntegrations.workspace_id == workspace_id
+		)
+		.first()
+	)
 
-    if not integration:
-        return []
+	if not integration:
+		return []
 
-    # Compute latest fetched_at PER SOURCE, not globally.
-    # Jira and Notion (etc.) sync independently, so a global MAX(fetched_at)
-    # would only match whichever source synced most recently and silently
-    # drop the others.
-    latest_per_source = (
-        db.query(
-            WorkspaceData.source,
-            func.max(WorkspaceData.fetched_at).label("max_fetched_at"),
-        )
-        .filter(
-            WorkspaceData.integration_id == integration.workspace_id
-        )
-        .group_by(WorkspaceData.source)
-        .all()
-    )
+	# Compute latest fetched_at PER SOURCE, not globally.
+	# Jira and Notion (etc.) sync independently, so a global MAX(fetched_at)
+	# would only match whichever source synced most recently and silently
+	# drop the others.
+	latest_per_source = (
+		db.query(
+			WorkspaceData.source,
+			func.max(WorkspaceData.fetched_at).label("max_fetched_at"),
+		)
+		.filter(
+			WorkspaceData.integration_id == integration.workspace_id
+		)
+		.group_by(WorkspaceData.source)
+		.all()
+	)
 
-    if not latest_per_source:
-        return []
+	if not latest_per_source:
+		return []
 
-    latest_conditions = [
-        and_(
-            WorkspaceData.source == src,
-            WorkspaceData.fetched_at == max_fetched_at,
-        )
-        for src, max_fetched_at in latest_per_source
-    ]
+	latest_conditions = [
+		and_(
+			WorkspaceData.source == src,
+			WorkspaceData.fetched_at == max_fetched_at,
+		)
+		for src, max_fetched_at in latest_per_source
+	]
 
-    query = (
-        db.query(WorkspaceData)
-        .filter(
-            WorkspaceData.integration_id == integration.workspace_id,
-            or_(*latest_conditions),
-        )
-    )
+	query = (
+		db.query(WorkspaceData)
+		.filter(
+			WorkspaceData.integration_id == integration.workspace_id,
+			or_(*latest_conditions),
+		)
+	)
 
-    if type:
-        query = query.filter(WorkspaceData.type == type)
+	if type:
+		query = query.filter(WorkspaceData.type == type)
 
-    if source:
-        query = query.filter(WorkspaceData.source == source)
+	if source:
+		query = query.filter(WorkspaceData.source == source)
 
-    if status:
-        query = query.filter(WorkspaceData.status == status)
+	if status:
+		query = query.filter(WorkspaceData.status == status)
 
-    if search:
-        query = query.filter(
-            WorkspaceData.title.ilike(f"%{search}%")
-        )
+	if search:
+		query = query.filter(
+			WorkspaceData.title.ilike(f"%{search}%")
+		)
 
-    rows = query.order_by(WorkspaceData.id).all()
+	rows = query.order_by(WorkspaceData.id).all()
 
-    return [
-        {
-            "id": row.id,
-            "integration_id": row.integration_id,
-            "type": row.type,
-            "source": row.source,
-            "title": row.title,
-            "status": row.status,
-            "payload": row.payload,
-            "fetched_at": row.fetched_at,
-        }
-        for row in rows
-    ]
-    # Dashboard Aggregation Endpoint
+	return [
+		{
+			"id": row.id,
+			"integration_id": row.integration_id,
+			"type": row.type,
+			"source": row.source,
+			"title": row.title,
+			"status": row.status,
+			"payload": row.payload,
+			"fetched_at": row.fetched_at,
+		}
+		for row in rows
+	]
+	# Dashboard Aggregation Endpoint
 
 TASK_STATUSES = ["TODO", "IN_PROGRESS", "DONE"]
 
 
 @router.get("/workspaces/{workspace_id}/dashboard", status_code=200)
 def get_workspace_dashboard(
-    workspace_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+	workspace_id: int,
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
 ):
-    workspace = (
-        db.query(Workspace)
-        .filter(Workspace.id == workspace_id)
-        .first()
-    )
-    if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+	workspace = (
+		db.query(Workspace)
+		.filter(Workspace.id == workspace_id)
+		.first()
+	)
+	if not workspace:
+		raise HTTPException(status_code=404, detail="Workspace not found")
 
-    membership = (
-        db.query(WorkspaceMember)
-        .filter(
-            WorkspaceMember.workspace_id == workspace_id,
-            WorkspaceMember.user_id == current_user.id,
-        )
-        .first()
-    )
-    if not membership:
-        raise HTTPException(
-            status_code=403,
-            detail="You are not a member of this workspace",
-        )
+	membership = (
+		db.query(WorkspaceMember)
+		.filter(
+			WorkspaceMember.workspace_id == workspace_id,
+			WorkspaceMember.user_id == current_user.id,
+		)
+		.first()
+	)
+	if not membership:
+		raise HTTPException(
+			status_code=403,
+			detail="You are not a member of this workspace",
+		)
 
-    empty_by_status = {status: 0 for status in TASK_STATUSES}
-    empty_response = {
-        "total_tasks": 0,
-        "by_status": dict(empty_by_status),
-        "by_source": {},
-        "completion_rate": 0,
-        "workload": {},
-    }
+	empty_by_status = {status: 0 for status in TASK_STATUSES}
+	empty_response = {
+		"total_tasks": 0,
+		"by_status": dict(empty_by_status),
+		"by_source": {},
+		"completion_rate": 0,
+		"workload": {},
+	}
 
-    integration = (
-        db.query(WorkspaceIntegrations)
-        .filter(WorkspaceIntegrations.workspace_id == workspace_id)
-        .first()
-    )
+	integration = (
+		db.query(WorkspaceIntegrations)
+		.filter(WorkspaceIntegrations.workspace_id == workspace_id)
+		.first()
+	)
 
-    if not integration:
-        return empty_response
+	if not integration:
+		return empty_response
 
-    # Same "current data batch" pattern as Get Current Workspace Data and
-    # List Workspace Members: use the latest fetched_at per source so that
-    # data from different sync runs is never mixed together.
-    latest_jira = (
-        db.query(func.max(WorkspaceData.fetched_at))
-        .filter(
-            WorkspaceData.integration_id == integration.workspace_id,
-            WorkspaceData.type == "task",
-            WorkspaceData.source == "jira",
-        )
-        .scalar()
-    )
+	# Same "current data batch" pattern as Get Current Workspace Data and
+	# List Workspace Members: use the latest fetched_at per source so that
+	# data from different sync runs is never mixed together.
+	latest_jira = (
+		db.query(func.max(WorkspaceData.fetched_at))
+		.filter(
+			WorkspaceData.integration_id == integration.workspace_id,
+			WorkspaceData.type == "task",
+			WorkspaceData.source == "jira",
+		)
+		.scalar()
+	)
 
-    latest_notion = (
-        db.query(func.max(WorkspaceData.fetched_at))
-        .filter(
-            WorkspaceData.integration_id == integration.workspace_id,
-            WorkspaceData.type == "task",
-            WorkspaceData.source == "notion",
-        )
-        .scalar()
-    )
+	latest_notion = (
+		db.query(func.max(WorkspaceData.fetched_at))
+		.filter(
+			WorkspaceData.integration_id == integration.workspace_id,
+			WorkspaceData.type == "task",
+			WorkspaceData.source == "notion",
+		)
+		.scalar()
+	)
 
-    filters = []
+	filters = []
 
-    if latest_jira:
-        filters.append(
-            and_(
-                WorkspaceData.source == "jira",
-                WorkspaceData.fetched_at == latest_jira,
-            )
-        )
+	if latest_jira:
+		filters.append(
+			and_(
+				WorkspaceData.source == "jira",
+				WorkspaceData.fetched_at == latest_jira,
+			)
+		)
 
-    if latest_notion:
-        filters.append(
-            and_(
-                WorkspaceData.source == "notion",
-                WorkspaceData.fetched_at == latest_notion,
-            )
-        )
+	if latest_notion:
+		filters.append(
+			and_(
+				WorkspaceData.source == "notion",
+				WorkspaceData.fetched_at == latest_notion,
+			)
+		)
 
-    if not filters:
-        # No sync has run yet (or no task data has been fetched)
-        return empty_response
+	if not filters:
+		# No sync has run yet (or no task data has been fetched)
+		return empty_response
 
-    tasks = (
-        db.query(WorkspaceData)
-        .filter(
-            WorkspaceData.integration_id == integration.workspace_id,
-            WorkspaceData.type == "task",
-            or_(*filters),
-        )
-        .all()
-    )
+	tasks = (
+		db.query(WorkspaceData)
+		.filter(
+			WorkspaceData.integration_id == integration.workspace_id,
+			WorkspaceData.type == "task",
+			or_(*filters),
+		)
+		.all()
+	)
 
-    if not tasks:
-        return empty_response
+	if not tasks:
+		return empty_response
 
-    by_status = dict(empty_by_status)
-    by_source = {}
-    workload = {}
+	by_status = dict(empty_by_status)
+	by_source = {}
+	workload = {}
 
-    for task in tasks:
-        status = task.status if task.status in TASK_STATUSES else "UNKNOWN"
-        by_status[status] = by_status.get(status, 0) + 1
+	for task in tasks:
+		status = task.status if task.status in TASK_STATUSES else "UNKNOWN"
+		by_status[status] = by_status.get(status, 0) + 1
 
-        source_counts = by_source.setdefault(
-            task.source, {s: 0 for s in TASK_STATUSES}
-        )
-        source_counts[status] = source_counts.get(status, 0) + 1
-        source_counts["total"] = source_counts.get("total", 0) + 1
+		source_counts = by_source.setdefault(
+			task.source, {s: 0 for s in TASK_STATUSES}
+		)
+		source_counts[status] = source_counts.get(status, 0) + 1
+		source_counts["total"] = source_counts.get("total", 0) + 1
 
-        payload = task.payload or {}
-        assignee = payload.get("assignee")
-        assignee = assignee.strip() if isinstance(assignee, str) else assignee
-        assignee_key = assignee if assignee else "Unassigned"
-        workload[assignee_key] = workload.get(assignee_key, 0) + 1
+		payload = task.payload or {}
+		assignee = payload.get("assignee")
+		assignee = assignee.strip() if isinstance(assignee, str) else assignee
+		assignee_key = assignee if assignee else "Unassigned"
+		workload[assignee_key] = workload.get(assignee_key, 0) + 1
 
-    total_tasks = len(tasks)
-    done_count = by_status.get("DONE", 0)
-    completion_rate = (
-        round((done_count / total_tasks) * 100, 2) if total_tasks else 0
-    )
+	total_tasks = len(tasks)
+	done_count = by_status.get("DONE", 0)
+	completion_rate = (
+		round((done_count / total_tasks) * 100, 2) if total_tasks else 0
+	)
 
-    return {
-        "total_tasks": total_tasks,
-        "by_status": by_status,
-        "by_source": by_source,
-        "completion_rate": completion_rate,
-        "workload": workload,
-    }
+	return {
+		"total_tasks": total_tasks,
+		"by_status": by_status,
+		"by_source": by_source,
+		"completion_rate": completion_rate,
+		"workload": workload,
+	}

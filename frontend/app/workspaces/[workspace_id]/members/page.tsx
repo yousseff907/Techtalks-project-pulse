@@ -9,6 +9,8 @@ import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { createPortal } from "react-dom";
 import { useRef } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 
 
@@ -407,22 +409,30 @@ export default function MembersPage() {
 
 	return (
 		<main className="mx-auto max-w-7xl p-8">
-			<div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-				<div>
-					<h1 className="text-3xl font-bold">
-						Team Members
-					</h1>
+			<Link
+                href={`/workspaces/${workspaceId}/dashboard`}
+                className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+            >
+                <ArrowLeft className="size-3.5" />
+                Back to dashboard
+            </Link>
 
-					<p className="text-muted-foreground">
-						Manage workspace members and linked platform accounts.
-					</p>
-				</div>
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold">
+                        Team Members
+                    </h1>
 
-				<div className="text-sm text-muted-foreground">
-					{filteredMembers.length} member
-					{filteredMembers.length !== 1 ? "s" : ""}
-				</div>
-			</div>
+                    <p className="text-muted-foreground">
+                        Manage workspace members and linked platform accounts.
+                    </p>
+                </div>
+
+                <div className="text-sm text-muted-foreground">
+                    {filteredMembers.length} member
+                    {filteredMembers.length !== 1 ? "s" : ""}
+                </div>
+            </div>
 
 			<div className="mt-6">
 				<Input
