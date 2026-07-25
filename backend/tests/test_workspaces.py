@@ -657,7 +657,7 @@ def test_get_workspace_details_success_as_owner(db_session, mock_user):
 		notion_connected_at=datetime.now(timezone.utc),
 	)
 	db_session.add(integration)
-	db_session.commit()
+	db_session.flush()
 
 	mock_user.id = owner.id
 	response = client.get(f"/workspaces/{workspace.id}")
@@ -692,7 +692,7 @@ def test_get_workspace_details_success_as_regular_member(db_session, mock_user):
 
 	integration = WorkspaceIntegrations(workspace_id=workspace.id)
 	db_session.add(integration)
-	db_session.commit()
+	db_session.flush()
 
 	mock_user.id = member_user.id
 	response = client.get(f"/workspaces/{workspace.id}")
@@ -763,7 +763,7 @@ def test_get_workspace_details_member_count_accurate(db_session, mock_user):
 	db_session.add(
 		WorkspaceIntegrations(workspace_id=workspace.id)
 	)
-	db_session.commit()
+	db_session.flush()
 
 	mock_user.id = owner.id
 	response = client.get(f"/workspaces/{workspace.id}")
@@ -789,7 +789,7 @@ def test_get_workspace_details_created_by_deleted_user(db_session, mock_user):
 	db_session.add(
 		WorkspaceIntegrations(workspace_id=workspace.id)
 	)
-	db_session.commit()
+	db_session.flush()
 
 	# Simulate created_by referencing a user that no longer exists,
 	# e.g. via ON DELETE SET NULL from a path outside normal account deletion.
