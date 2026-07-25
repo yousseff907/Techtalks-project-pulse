@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { WorkspaceMember } from "@/app/workspaces/[workspace_id]/members/member_types";
+import { WorkspaceMember } from "@/app/(protected)/workspaces/[workspace_id]/members/member_types";
 
 interface MemberCardProps {
 	member: WorkspaceMember;
