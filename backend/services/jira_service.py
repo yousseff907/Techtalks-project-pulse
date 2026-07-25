@@ -11,7 +11,7 @@ class JiraService:
 
         while True:
             response = requests.get(
-                f"{self.base_url}/rest/api/3/user/search",
+                f"{self.base_url}/rest/api/3/users/search",
                 auth=self.auth,
                 headers={"Accept": "application/json"},
                 params={
@@ -63,36 +63,44 @@ class JiraService:
 
         return all_projects
 
-    def fetch_issues(self, start_at=0, max_results=100, jql=""):
-        url = f"{self.base_url}/rest/api/3/search"
-
+    def fetch_issues(self, max_results=100, jql=""):
+        url = f"{self.base_url}/rest/api/3/search/jql"
         issues = []
 
+        next_page_token = None
+
+        if not jql:
+            jql = "created is not empty"
+
         while True:
+            params = {
+                "jql": jql,
+                "maxResults": max_results,
+                "fields": ["summary", "status", "assignee", "updated"]
+            }
+
+            if next_page_token:
+                params["nextPageToken"] = next_page_token
+
             response = requests.get(
                 url,
                 auth=self.auth,
                 headers={"Accept": "application/json"},
-                params={
-                    "startAt": start_at,
-                    "maxResults": max_results,
-                    "jql": jql,
-                },
+                params=params,
             )
 
             response.raise_for_status()
             data = response.json()
 
             page_issues = data.get("issues", [])
-
             if not page_issues:
                 break
 
             issues.extend(page_issues)
 
-            if len(page_issues) < max_results:
-                break
+            next_page_token = data.get("nextPageToken")
 
-            start_at += max_results
+            if not next_page_token:
+                break
 
         return issues
