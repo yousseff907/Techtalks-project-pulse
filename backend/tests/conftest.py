@@ -15,12 +15,16 @@ from utils.database import Base, get_db
 from utils.dependencies import get_current_user
 from app import app
 
+@pytest.fixture(scope="session")
+def engine():
+	engine = create_engine(os.environ["DATABASE_URL"])
+	yield engine
+	engine.dispose()
 
 
 @pytest.fixture(scope="function")
-def	db_session():
+def	db_session(engine):
 
-	engine = create_engine(os.environ["DATABASE_URL"])
 	TestingSessionLocal = sessionmaker(bind=engine)
 
 	Base.metadata.create_all(bind=engine)
