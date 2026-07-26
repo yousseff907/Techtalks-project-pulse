@@ -11,7 +11,7 @@ class JiraService:
 
         while True:
             response = requests.get(
-                f"{self.base_url}/rest/api/3/users/search",
+                f"{self.base_url.rstrip('/')}/rest/api/3/users/search",
                 auth=self.auth,
                 headers={"Accept": "application/json"},
                 params={
@@ -41,7 +41,7 @@ class JiraService:
 
         while True:
             response = requests.get(
-                f"{self.base_url}/rest/api/3/project/search",
+                f"{self.base_url.rstrip('/')}/rest/api/3/project/search",
                 auth=self.auth,
                 headers={"Accept": "application/json"},
                 params={
@@ -64,7 +64,7 @@ class JiraService:
         return all_projects
 
     def fetch_issues(self, max_results=100, jql=""):
-        url = f"{self.base_url}/rest/api/3/search/jql"
+        url = f"{self.base_url.rstrip('/')}/rest/api/3/search/jql"
         issues = []
 
         next_page_token = None
@@ -76,7 +76,16 @@ class JiraService:
             params = {
                 "jql": jql,
                 "maxResults": max_results,
-                "fields": ["summary", "status", "assignee", "updated"]
+                "fields": ["summary",
+                "description",
+                "status",
+                "priority",
+                "assignee",
+                "reporter",
+                "project",
+                "created",
+                "updated",
+                "duedate"]
             }
 
             if next_page_token:

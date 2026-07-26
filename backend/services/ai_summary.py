@@ -137,7 +137,7 @@ Mention overall progress, risks, bottlenecks, and any notable priorities.
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",  # Default model for now
+            model="gemini-3.1-flash-lite-preview",
             contents=prompt,
         )
     except Exception as exc:
