@@ -234,6 +234,7 @@ async function generateSummary(
 
 async function emailSummary(
     workspaceId: string,
+    summary: string,
     email: string | null,
     token: string | null
 ) {
@@ -243,6 +244,7 @@ async function emailSummary(
             method: "POST",
             headers: authHeaders(token),
             body: JSON.stringify({
+                summary,
                 email,
             }),
         }
@@ -250,10 +252,7 @@ async function emailSummary(
 
     if (!response.ok) {
         const error = await response.json();
-
-        throw new Error(
-            error.detail ?? "Failed to send summary"
-        );
+        throw new Error(error.detail ?? "Failed to send summary");
     }
 
     return response.json();
@@ -329,10 +328,10 @@ export default function DashboardPage() {
         mutationFn: (email: string | null) =>
             emailSummary(
                 workspaceId,
+                summary,
                 email,
                 accessToken
             ),
-
         onSuccess: () => {
             setEmailAddress("");
         },
