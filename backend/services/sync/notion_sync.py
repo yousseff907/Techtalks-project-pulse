@@ -169,3 +169,4 @@ def gather_and_store_notion_tasks(integration_id: int, db: Session) -> int:
 
     db.flush()
     return total_tasks
+#sync
