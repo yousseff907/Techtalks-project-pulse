@@ -224,9 +224,15 @@ async function generateSummary(
     if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(
-            error.detail ?? "Failed to generate summary"
-        );
+        let message = "Failed to generate summary";
+
+        if (typeof error.detail === "string") {
+            message = error.detail;
+        } else if (Array.isArray(error.detail)) {
+            message = error.detail.map((e: any) => e.msg).join(", ");
+        }
+
+        throw new Error(message);
     }
 
     return response.json();
@@ -234,6 +240,7 @@ async function generateSummary(
 
 async function emailSummary(
     workspaceId: string,
+    summary: string,
     email: string | null,
     token: string | null
 ) {
@@ -243,6 +250,7 @@ async function emailSummary(
             method: "POST",
             headers: authHeaders(token),
             body: JSON.stringify({
+                summary,
                 email,
             }),
         }
@@ -251,9 +259,15 @@ async function emailSummary(
     if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(
-            error.detail ?? "Failed to send summary"
-        );
+        let message = "Failed to send summary";
+
+        if (typeof error.detail === "string") {
+            message = error.detail;
+        } else if (Array.isArray(error.detail)) {
+            message = error.detail.map((e: any) => e.msg).join(", ");
+        }
+
+        throw new Error(message);
     }
 
     return response.json();
@@ -329,10 +343,10 @@ export default function DashboardPage() {
         mutationFn: (email: string | null) =>
             emailSummary(
                 workspaceId,
+                summary,
                 email,
                 accessToken
             ),
-
         onSuccess: () => {
             setEmailAddress("");
         },
@@ -676,11 +690,20 @@ export default function DashboardPage() {
                                 emailLoading={emailMutation.isPending}
                                 emailError={emailMutation.error?.message}
                                 emailSuccess={emailMutation.isSuccess}
-                                onGenerate={() => summaryMutation.mutate()}
-                                onEmailMe={() => emailMutation.mutate(null)}
-                                onEmailOther={() =>
-                                    emailMutation.mutate(emailAddress)
-                                }
+                                onGenerate={() => {
+                                    summaryMutation.reset();
+                                    summaryMutation.mutate();
+                                }}
+
+                                onEmailMe={() => {
+                                    emailMutation.reset();
+                                    emailMutation.mutate(null);
+                                }}
+
+                                onEmailOther={() => {
+                                    emailMutation.reset();
+                                    emailMutation.mutate(emailAddress);
+                                }}
                             />
 
                         </div>
