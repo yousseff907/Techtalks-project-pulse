@@ -754,7 +754,7 @@ def send_summary_to_email(request: SummaryEmailRequest, workspace_id: int, curre
 
 	recipient = request.email.strip() if request.email and request.email.strip() else current_user.email
 
-	state = send_summary_email(recipient, request.summary)
+	state = send_summary_email(recipient, request.summary, workspace.name, workspace_id)
 
 	if not state:
 		raise HTTPException(status_code=500, detail="Failed to send email, try again later")
