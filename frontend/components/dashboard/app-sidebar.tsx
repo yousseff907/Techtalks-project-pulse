@@ -7,6 +7,7 @@ import { ProfileSection } from "./profile-section";
 
 import {
     LayoutDashboard,
+    ListTodo,
     Users,
     Briefcase,
     Plug,
@@ -29,6 +30,7 @@ interface AppSidebarProps {
 
     activePage:
         | "dashboard"
+        | "tasks"
         | "members"
         | "integrations"
         | "workspaces";
@@ -38,6 +40,7 @@ interface AppSidebarProps {
     onCreateWorkspace: () => void;
 
     onDashboard: () => void;
+    onTasks: () => void;
     onMembers: () => void;
     onIntegrations: () => void;
     onProfile: () => void;
@@ -57,6 +60,7 @@ export function AppSidebar({
     onCreateWorkspace,
 
     onDashboard,
+    onTasks,
     onMembers,
     onIntegrations,
     onProfile,
@@ -64,8 +68,6 @@ export function AppSidebar({
 }: AppSidebarProps) {
     return (
         <aside className="fixed left-0 top-0 flex h-screen w-72 flex-col border-r bg-background px-4 py-5">
-
-           
             <div>
                 <h1 className="mb-6 text-2xl font-bold tracking-tight">
                     Project Pulse
@@ -79,12 +81,9 @@ export function AppSidebar({
                 />
             </div>
 
-            
             <div className="mt-5 border-b" />
 
-            
             <nav className="mt-5 flex flex-1 flex-col gap-2">
-
                 <Button
                     variant={
                         activePage === "dashboard"
@@ -100,6 +99,23 @@ export function AppSidebar({
                 >
                     <LayoutDashboard className="h-5 w-5" />
                     Dashboard
+                </Button>
+
+                <Button
+                    variant={
+                        activePage === "tasks"
+                            ? "default"
+                            : "ghost"
+                    }
+                    className={`h-12 w-full justify-start gap-3 rounded-xl px-4 transition-all duration-200 ${
+                        activePage === "tasks"
+                            ? "shadow-sm font-semibold"
+                            : ""
+                    }`}
+                    onClick={onTasks}
+                >
+                    <ListTodo className="h-5 w-5" />
+                    All Tasks
                 </Button>
 
                 <Button
@@ -152,11 +168,9 @@ export function AppSidebar({
                     <Plug className="h-5 w-5" />
                     Integration Settings
                 </Button>
-
             </nav>
 
             <div className="mt-auto border-t pt-5 pb-1">
-
                 <ProfileSection
                     name={username}
                     role={userRole}
@@ -171,7 +185,6 @@ export function AppSidebar({
                     <LogOut className="h-5 w-5" />
                     Sign out
                 </Button>
-
             </div>
         </aside>
     );

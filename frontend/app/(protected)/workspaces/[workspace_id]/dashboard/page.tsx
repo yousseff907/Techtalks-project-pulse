@@ -498,6 +498,7 @@ export default function DashboardPage() {
                     onDashboard={() => {}}
                     onMembers={() => {}}
                     onIntegrations={() => {}}
+                    onTasks={() => {}}
                     onProfile={() => {}}
                     onSignOut={() => {}}
                 />
@@ -548,6 +549,9 @@ export default function DashboardPage() {
                     }
                     onIntegrations={() =>
                         router.push(`/workspaces/${workspaceId}/integrations`)
+                    }
+                    onTasks={() =>
+                        router.push(`/workspaces/${workspaceId}/tasks`)
                     }
                     onProfile={() =>
                         router.push("/profile")
@@ -600,6 +604,9 @@ export default function DashboardPage() {
                 }
                 onIntegrations={() =>
                     router.push(`/workspaces/${workspaceId}/integrations`)
+                }
+                onTasks={() =>
+                    router.push(`/workspaces/${workspaceId}/tasks`)
                 }
                 onProfile={() =>
                     router.push("/profile")
