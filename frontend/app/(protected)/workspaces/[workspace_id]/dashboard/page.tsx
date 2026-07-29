@@ -73,8 +73,11 @@ interface DashboardTask {
         id?: string;
         key?: string;
         title?: string;
-        assignee?: string;
-        due_date?: string;
+        description?: string | null;
+        priority?: string | null;
+        status?: string | null;
+        assignee?: string | null;
+        due_date?: string | null;
     } | null;
     fetched_at: string;
 }
@@ -279,8 +282,8 @@ export default function DashboardPage() {
 
     const workspaceId = params.workspace_id as string;
 
-    const accessToken = useAuthStore((state) => state.accessToken);
-    const hasHydrated = useAuthStore((state) => state.hasHydrated);
+    const accessToken = useAuthStore((state : { accessToken: string | null }) => state.accessToken);
+    const hasHydrated = useAuthStore((state : { hasHydrated: boolean }) => state.hasHydrated);
 
     const queryClient = useQueryClient();
 
@@ -334,7 +337,7 @@ export default function DashboardPage() {
                 accessToken
             ),
 
-        onSuccess: (data) => {
+        onSuccess: (data : SummaryResponse) => {
             setSummary(data.summary);
         },
     });
@@ -382,7 +385,7 @@ export default function DashboardPage() {
         }
 
         const exists = workspaces.some(
-            (workspace) => workspace.id === Number(workspaceId)
+            (workspace : Workspace) => workspace.id === Number(workspaceId)
         );
 
         if (!exists) {
@@ -402,7 +405,7 @@ export default function DashboardPage() {
 
     const currentWorkspace =
         workspaces.find(
-            (workspace) =>
+            (workspace : Workspace) =>
                 workspace.id === Number(workspaceId)
         ) ?? workspaces[0];
 
@@ -421,7 +424,6 @@ export default function DashboardPage() {
     });
 
 
-    
 
     const {
         data: dashboard,
@@ -444,7 +446,7 @@ export default function DashboardPage() {
             return tasks;
         }
 
-        return tasks.filter((task) => {
+        return tasks.filter((task : DashboardTask) => {
             const title =
                 task.title ??
                 task.payload?.title ??
@@ -453,9 +455,13 @@ export default function DashboardPage() {
             const status =
                 task.status ?? "";
 
+            const assignee =
+                task.payload?.assignee ?? "";
+
             return (
                 title.toLowerCase().includes(term) ||
-                status.toLowerCase().includes(term)
+                status.toLowerCase().includes(term) ||
+                assignee.toLowerCase().includes(term)
             );
         });
     }, [tasks, search]);
@@ -479,9 +485,6 @@ export default function DashboardPage() {
         dashboardLoading ||
         tasksLoading ||
         currentUserLoading;
-
- 
-
 
     if (isLoading) {
         return (
@@ -516,12 +519,6 @@ export default function DashboardPage() {
             </>
         );
     }
-
-    
-
-    
-
-    
 
     if (syncError) {
         return (
@@ -667,13 +664,17 @@ export default function DashboardPage() {
                     <div className="grid gap-8 xl:grid-cols-[2fr_1fr]">
 
                         <RecentTasksTable
-                            tasks={filteredTasks.map((task) => ({
+                            tasks={filteredTasks.map((task : DashboardTask) => ({
                                 id: task.id,
                                 title:
                                     task.title ??
                                     task.payload?.title ??
                                     "Untitled Task",
-                                status: task.status ?? "TODO",
+                                status: task.status ?? task.payload?.status ?? "TODO",
+                                source: task.source,
+                                assignee: task.payload?.assignee ?? null,
+                                priority: task.payload?.priority ?? null,
+                                due_date: task.payload?.due_date ?? null,
                             }))}
                         />
 

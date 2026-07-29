@@ -132,7 +132,7 @@ def gather_and_store_notion_tasks(integration_id: int, db: Session) -> int:
             priority = priority_select.get("name", "")
 
             people = props.get("Assignee", {}).get("people", [])
-            assignee = people[0].get("name", "") if people else ""
+            assignee = (people[0].get("name") or "") if people else ""
 
             created_at = _to_iso8601(task.get("created_time", ""))
             updated_at = _to_iso8601(task.get("last_edited_time", ""))
