@@ -45,7 +45,13 @@ def make_notion_task(
 		"properties": {
 			"Name": {"title": [{"plain_text": title}]} if title else {"title": []},
 			"Description": {"rich_text": [{"plain_text": description}]} if description else {"rich_text": []},
-			"Status": {"select": {"name": status}} if status else {"select": None},
+			"Status": {
+				"type": "status",
+				"status": {"name": status},
+			} if status else {
+				"type": "status",
+				"status": None,
+			},
 			"Priority": {"select": {"name": priority}} if priority else {"select": None},
 			"Assignee": {"people": [{"name": assignee_name}]} if assignee_name else {"people": []},
 			"Due": {"date": {"start": due_date}} if due_date else {"date": None},
@@ -274,22 +280,28 @@ def test_assignee_extracted_correctly(db_session):
 	assert row.payload["assignee"] == "Jane Doe"
 
 
-def test_missing_assignee_returns_empty_string(db_session):
-	workspace, integration = make_workspace_with_integration(db_session, invite_code="notiontasknoassignee")
+def test_assignee_with_present_but_null_name_returns_empty_string(db_session):
+ # Notion guest/bot "people" entries can be present in the list but have
+ # a "name" key whose value is None (rather than the key being absent
+ # entirely). This must fall back to "" instead of storing null.
+ workspace, integration = make_workspace_with_integration(db_session, invite_code="notiontaskassigneenullname")
 
-	with patch("services.sync.notion_sync.NotionService") as MockService:
-		MockService.return_value.fetch_databases.return_value = [{"id": "db-1", "title": "DB"}]
-		MockService.return_value.fetch_tasks.return_value = [make_notion_task(assignee_name=None)]
+ task = make_notion_task()
+ task["properties"]["Assignee"] = {"people": [{"id": "guest-1", "name": None}]}
 
-		gather_and_store_notion_tasks(integration_id=workspace.id, db=db_session)
+ with patch("services.sync.notion_sync.NotionService") as MockService:
+  MockService.return_value.fetch_databases.return_value = [{"id": "db-1", "title": "DB"}]
+  MockService.return_value.fetch_tasks.return_value = [task]
 
-	db_session.commit()
+  gather_and_store_notion_tasks(integration_id=workspace.id, db=db_session)
 
-	row = db_session.query(WorkspaceData).filter(
-		WorkspaceData.integration_id == workspace.id, WorkspaceData.type == "task"
-	).first()
+ db_session.commit()
 
-	assert row.payload["assignee"] == ""
+ row = db_session.query(WorkspaceData).filter(
+  WorkspaceData.integration_id == workspace.id, WorkspaceData.type == "task"
+ ).first()
+
+ assert row.payload["assignee"] == ""
 
 
 def test_tags_extracted_correctly(db_session):
@@ -526,3 +538,4 @@ def test_notion_service_instantiated_with_correct_token(db_session):
 		gather_and_store_notion_tasks(integration_id=workspace.id, db=db_session)
 
 	MockService.assert_called_once_with(api_token="secret-task-token")
+ #test

@@ -14,6 +14,8 @@ _STATUS_MAP = {
 
 
 def _normalize_status(raw_status: str) -> str:
+    if not raw_status:
+        return ""
     return _STATUS_MAP.get(raw_status.lower().strip(), raw_status)
 
 
@@ -30,6 +32,7 @@ def _to_iso8601(date_str: str | None) -> str:
 
     except ValueError:
         return date_str
+
 
 def gather_and_store_notion_users(integration_id: int, db: Session) -> int:
     integration = (
@@ -118,28 +121,43 @@ def gather_and_store_notion_tasks(integration_id: int, db: Session) -> int:
         for task in raw_tasks:
             props = task.get("properties", {})
 
-            title_arr = props.get("Name", {}).get("title", [])
+            # Task Title Lookup (Checks 'Task name' first, then falls back to 'Name')
+            title_prop = props.get("Task name") or props.get("Name") or {}
+            title_arr = title_prop.get("title", [])
             title = title_arr[0].get("plain_text", "") if title_arr else ""
 
+            # Description
             desc_arr = props.get("Description", {}).get("rich_text", [])
             description = desc_arr[0].get("plain_text", "") if desc_arr else ""
 
-            status_select = props.get("Status", {}).get("select") or {}
-            raw_status = status_select.get("name", "")
+            # Status Lookup (Supports both Notion native 'status' and 'select' types)
+            status_obj = props.get("Status", {})
+            raw_status = ""
+            if status_obj.get("type") == "status" and status_obj.get("status"):
+                raw_status = status_obj["status"].get("name", "")
+            elif status_obj.get("type") == "select" and status_obj.get("select"):
+                raw_status = status_obj["select"].get("name", "")
+            
             status = _normalize_status(raw_status)
 
+            # Priority
             priority_select = props.get("Priority", {}).get("select") or {}
             priority = priority_select.get("name", "")
 
+            # Assignee
             people = props.get("Assignee", {}).get("people", [])
-            assignee = people[0].get("name", "") if people else ""
+            assignee = (people[0].get("name") or "") if people else ""
 
+            # Timestamps
             created_at = _to_iso8601(task.get("created_time", ""))
             updated_at = _to_iso8601(task.get("last_edited_time", ""))
 
-            due_date_obj = props.get("Due", {}).get("date") or {}
-            due_date = _to_iso8601(due_date_obj.get("start", ""))
+            # Due Date Lookup (Checks 'Due date' first, then falls back to 'Due')
+            due_obj = props.get("Due date") or props.get("Due") or {}
+            due_date_data = due_obj.get("date") or {}
+            due_date = _to_iso8601(due_date_data.get("start", ""))
 
+            # Tags
             tags_arr = props.get("Tags", {}).get("multi_select", [])
             tags = [tag.get("name", "") for tag in tags_arr]
 
