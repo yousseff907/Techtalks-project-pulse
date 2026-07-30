@@ -8,7 +8,7 @@ import {
     useQueryClient,
 } from "@tanstack/react-query";
 
-import { useAuthStore } from "@/lib/auth-store";
+import { useAuthStore} from "@/lib/auth-store";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
@@ -74,8 +74,8 @@ interface DashboardTask {
         key?: string;
         title?: string;
         description?: string | null;
-        priority?: string | null;
         status?: string | null;
+        priority?: string | null;
         assignee?: string | null;
         due_date?: string | null;
     } | null;
@@ -88,6 +88,12 @@ interface CurrentUser {
     email: string;
     is_verified: boolean;
     created_at: string;
+}
+
+interface AuthState {
+    accessToken: string | null;
+    hasHydrated: boolean;
+    clearAccessToken: () => void;
 }
 
 async function fetchDashboard(
@@ -282,8 +288,8 @@ export default function DashboardPage() {
 
     const workspaceId = params.workspace_id as string;
 
-    const accessToken = useAuthStore((state : { accessToken: string | null }) => state.accessToken);
-    const hasHydrated = useAuthStore((state : { hasHydrated: boolean }) => state.hasHydrated);
+    const accessToken = useAuthStore((state: AuthState) => state.accessToken);
+    const hasHydrated = useAuthStore((state: AuthState) => state.hasHydrated);
 
     const queryClient = useQueryClient();
 
@@ -337,7 +343,7 @@ export default function DashboardPage() {
                 accessToken
             ),
 
-        onSuccess: (data : SummaryResponse) => {
+        onSuccess: (data: SummaryResponse) => {
             setSummary(data.summary);
         },
     });
@@ -385,7 +391,7 @@ export default function DashboardPage() {
         }
 
         const exists = workspaces.some(
-            (workspace : Workspace) => workspace.id === Number(workspaceId)
+            (workspace: Workspace) => workspace.id === Number(workspaceId)
         );
 
         if (!exists) {
@@ -405,7 +411,7 @@ export default function DashboardPage() {
 
     const currentWorkspace =
         workspaces.find(
-            (workspace : Workspace) =>
+            (workspace: Workspace) =>
                 workspace.id === Number(workspaceId)
         ) ?? workspaces[0];
 
@@ -446,7 +452,7 @@ export default function DashboardPage() {
             return tasks;
         }
 
-        return tasks.filter((task : DashboardTask) => {
+        return tasks.filter((task: DashboardTask) => {
             const title =
                 task.title ??
                 task.payload?.title ??
@@ -664,7 +670,7 @@ export default function DashboardPage() {
                     <div className="grid gap-8 xl:grid-cols-[2fr_1fr]">
 
                         <RecentTasksTable
-                            tasks={filteredTasks.map((task : DashboardTask) => ({
+                            tasks={filteredTasks.map((task: DashboardTask) => ({
                                 id: task.id,
                                 title:
                                     task.title ??
@@ -673,7 +679,6 @@ export default function DashboardPage() {
                                 status: task.status ?? task.payload?.status ?? "TODO",
                                 source: task.source,
                                 assignee: task.payload?.assignee ?? null,
-                                priority: task.payload?.priority ?? null,
                                 due_date: task.payload?.due_date ?? null,
                             }))}
                         />

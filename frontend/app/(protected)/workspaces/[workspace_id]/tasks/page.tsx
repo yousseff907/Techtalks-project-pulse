@@ -88,6 +88,19 @@ const SOURCE_BADGE_CLASSES: Record<string, string> = {
   notion: "bg-neutral-200 text-neutral-800",
 };
 
+// Priority values are free-form per Jira project / Notion database, so we
+// can't hardcode a fixed list the way we do for status. We only special-case
+// coloring for the common spellings and fall back to a neutral badge for
+// anything else (e.g. a custom Notion select option) rather than hiding it.
+const PRIORITY_BADGE_CLASSES: Record<string, string> = {
+  highest: "bg-red-100 text-red-700",
+  urgent: "bg-red-100 text-red-700",
+  high: "bg-orange-100 text-orange-700",
+  medium: "bg-amber-100 text-amber-700",
+  low: "bg-blue-100 text-blue-700",
+  lowest: "bg-slate-100 text-slate-700",
+};
+
 // ---------------------------------------------------------------------------
 // Data fetching
 // ---------------------------------------------------------------------------
@@ -222,6 +235,25 @@ function StatusBadge({ status }: { status: string | null }) {
   );
 }
 
+function PriorityBadge({ priority }: { priority: string | null | undefined }) {
+  if (!priority) {
+    return <span className="text-sm text-muted-foreground">—</span>;
+  }
+
+  const normalized = priority.toLowerCase();
+
+  return (
+    <span
+      className={cn(
+        "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
+        PRIORITY_BADGE_CLASSES[normalized] ?? "bg-muted text-muted-foreground"
+      )}
+    >
+      {priority}
+    </span>
+  );
+}
+
 function AssigneeCell({ assignee }: { assignee: string | null | undefined }) {
   if (!assignee) {
     return (
@@ -267,6 +299,10 @@ function TaskTableSkeleton() {
                 </th>
 
                 <th className="px-6 py-4 text-left text-sm font-semibold">
+                  Priority
+                </th>
+
+                <th className="px-6 py-4 text-left text-sm font-semibold">
                   Status
                 </th>
 
@@ -296,6 +332,10 @@ function TaskTableSkeleton() {
                   </td>
 
                   <td className="px-6 py-5 align-middle">
+                    <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
+                  </td>
+
+                  <td className="px-6 py-5 align-middle">
                     <div className="h-6 w-20 animate-pulse rounded-full bg-muted" />
                   </td>
 
@@ -320,10 +360,13 @@ export default function TasksPage() {
   const params = useParams();
   const workspaceId = params.workspace_id as string;
 
-  const accessToken = useAuthStore((state: { accessToken: any; }) => state.accessToken);
+  const accessToken = useAuthStore(
+    (state: { accessToken: string | null }) => state.accessToken
+  );
 
   const [sourceFilter, setSourceFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -357,19 +400,39 @@ export default function TasksPage() {
   });
 
   const hasActiveFilters =
-    !!sourceFilter || !!statusFilter || !!searchInput;
+    !!sourceFilter || !!statusFilter || !!priorityFilter || !!searchInput;
 
   const clearFilters = () => {
     setSourceFilter("");
     setStatusFilter("");
+    setPriorityFilter("");
     setSearchInput("");
   };
 
+  // Priority is free-form per Jira project / Notion database (not a fixed
+  // enum like status), and it lives inside WorkspaceData.payload rather than
+  // being its own queryable column, so we build the filter options from
+  // whatever priorities are actually present and filter client-side.
+  const priorityOptions = useMemo(() => {
+    const seen = new Set<string>();
+
+    for (const task of tasks) {
+      const priority = task.payload?.priority;
+      if (priority) seen.add(priority);
+    }
+
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
+  }, [tasks]);
+
   const sortedTasks = useMemo(() => {
-    return [...tasks].sort((a, b) =>
+    const withPriorityFilter = priorityFilter
+      ? tasks.filter((task: WorkspaceTask) => task.payload?.priority === priorityFilter)
+      : tasks;
+
+    return [...withPriorityFilter].sort((a, b) =>
       getTaskTitle(a).localeCompare(getTaskTitle(b))
     );
-  }, [tasks]);
+  }, [tasks, priorityFilter]);
 
   return (
     <main className="mx-auto max-w-7xl p-8">
@@ -429,6 +492,19 @@ export default function TasksPage() {
           {STATUS_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={priorityFilter}
+          onChange={(e) => setPriorityFilter(e.target.value)}
+          className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm shadow-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <option value="">All priorities</option>
+          {priorityOptions.map((priority) => (
+            <option key={priority} value={priority}>
+              {priority}
             </option>
           ))}
         </select>
@@ -500,6 +576,10 @@ export default function TasksPage() {
                     </th>
 
                     <th className="px-6 py-4 text-left text-sm font-semibold">
+                      Priority
+                    </th>
+
+                    <th className="px-6 py-4 text-left text-sm font-semibold">
                       Status
                     </th>
 
@@ -537,6 +617,10 @@ export default function TasksPage() {
                           <AssigneeCell
                             assignee={task.payload?.assignee}
                           />
+                        </td>
+
+                        <td className="px-6 py-5 align-middle">
+                          <PriorityBadge priority={task.payload?.priority} />
                         </td>
 
                         <td className="px-6 py-5 align-middle">

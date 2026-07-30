@@ -10,16 +10,17 @@ import { Calendar } from "lucide-react";
 // Shape this component actually needs, built from the normalized
 // WorkspaceData payload that both gather_and_store_jira_tasks and
 // gather_and_store_notion_tasks produce. Both sync jobs write the same
-// keys (status, assignee, priority, due_date, ...), so this table never
-// needs to branch on `source` to know where to find a field - only to
-// render the small "Jira"/"Notion" pill.
+// keys (status, assignee, due_date, ...), so this table never needs to
+// branch on `source` to know where to find a field - only to
+// render the small "Jira"/"Notion" pill. Priority is intentionally not
+// shown here - it's surfaced on the All Tasks page instead, where it's
+// also filterable.
 interface Task {
     id: number;
     title: string;
     status: string;
     source: string;
     assignee?: string | null;
-    priority?: string | null;
     due_date?: string | null;
 }
 
@@ -177,10 +178,6 @@ export function RecentTasksTable({
                                     Assignee
                                 </th>
 
-                                <th className="w-28 pb-3 text-left text-sm font-medium text-muted-foreground">
-                                    Priority
-                                </th>
-
                                 <th className="w-36 pb-3 text-center text-sm font-medium text-muted-foreground">
                                     Status
                                 </th>
@@ -215,12 +212,6 @@ export function RecentTasksTable({
                                         )}
                                     </td>
 
-                                    <td className="py-4 align-middle text-sm">
-                                        {task.priority || (
-                                            <span className="text-muted-foreground">—</span>
-                                        )}
-                                    </td>
-
                                     <td className="py-4 text-center align-middle">
                                         <StatusBadge
                                             status={task.status}
@@ -239,7 +230,7 @@ export function RecentTasksTable({
                             {tasks.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={6}
+                                        colSpan={5}
                                         className="py-10 text-center text-sm text-muted-foreground"
                                     >
                                         <p>No tasks found.</p>
