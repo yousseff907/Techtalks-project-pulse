@@ -240,7 +240,7 @@ function StatusBadge({ status }: { status: string | null }) {
 
 function PriorityBadge({ priority }: { priority: string | null | undefined }) {
   if (!priority) {
-    return <span className="text-sm text-muted-foreground">—</span>;
+    return <span className="text-sm text-muted-foreground">-</span>;
   }
 
   const normalized = priority.toLowerCase();

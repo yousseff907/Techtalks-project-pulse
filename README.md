@@ -51,7 +51,7 @@ Teams that use multiple project management tools (Jira, Notion, etc.) often stru
 
 Developed by **Team Python D** as part of the **TechTalks Lebanon** internship program.
 
-- Youssef Itani — Team Lead
+- Youssef Itani (Team Lead)
 - Paul Riachy
 - Abbas Abed Al Nabi
 - Nour Al Zahraa Hammoud

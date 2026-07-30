@@ -54,7 +54,7 @@ export default function SignInPage() {
 	return (
 		<AuthCard
 			title="Sign in to Project Pulse"
-			description="Enter your email — we'll send you a verification code. No password required."
+			description="Enter your email, we'll send you a verification code. No password required."
 			footer={
 				<>
 					Don't have an account?{" "}

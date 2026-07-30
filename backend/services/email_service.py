@@ -8,12 +8,12 @@ from config import APP_BASE_URL, RESEND_API_KEY
 resend.api_key = RESEND_API_KEY
 
 # ── Brand palette (hex approximations of the app's oklch design tokens in
-# frontend/app/globals.css — email clients can't render oklch/var()). ──
+# frontend/app/globals.css , email clients can't render oklch/var()). ──
 PRIMARY = "#4f46e5"        # --primary  oklch(0.51 0.23 277)
 PRIMARY_DARK = "#4133cb"   # hover / darker edge
 TINT = "#eef2ff"           # light primary tint (code box background)
 TINT_BORDER = "#e0e7ff"    # primary-tinted border
-INK = "#0f182b"            # headings — --sidebar navy
+INK = "#0f182b"            # headings --sidebar navy
 BODY = "#44444f"           # body copy
 MUTED = "#8a8a94"          # secondary / fine print
 PAGE_BG = "#f4f4f7"        # area around the card
@@ -185,7 +185,7 @@ def send_summary_email(to: str, summary: str, workspace_name: str, workspace_id:
 </td></tr></table>
 """
 
-	subject = f"Your Project Pulse summary — {workspace_name}" if workspace_name else "Your Project Pulse workspace summary"
+	subject = f"Your Project Pulse summary : {workspace_name}" if workspace_name else "Your Project Pulse workspace summary"
 	preheader = f"Here's the latest summary for {workspace_name}." if workspace_name else "Your latest workspace summary."
 
 	return _send_email(to, subject, _base_layout(preheader, inner))

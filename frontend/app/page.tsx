@@ -17,7 +17,7 @@ export default function LandingPage() {
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-balance text-muted-foreground">
             Project Pulse aggregates your team's work across tools so you
-            always know what's moving — and what's stuck.
+            always know what's moving and what's stuck.
           </p>
 
           <div className="mt-8 flex items-center justify-center gap-3">
