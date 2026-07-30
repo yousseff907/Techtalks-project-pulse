@@ -67,7 +67,6 @@ Mentor: Khaled Frayji
 - Sprint 3 Report: [Notion Link](https://tasteful-persimmon-4c2.notion.site/Sprint-3-Report-39a31913a1a180379a8bd5352aea278b?source=copy_link)
 - Sprint 4 Report: [Notion Link](https://tasteful-persimmon-4c2.notion.site/Sprint-4-Report-3a131913a1a18020b875f53e05d524cc?source=copy_link)
 - Sprint 5 Report: [Notion Link](https://tasteful-persimmon-4c2.notion.site/Sprint-5-Report-3a931913a1a1806ca8d1d87cc23650e7?source=copy_link)
-- SRS / Documentation: [link]
 - Jira Board: [Jira Link](https://yitani.atlassian.net/jira/software/projects/PPTI/boards/36)
 
 ## API Documentation
