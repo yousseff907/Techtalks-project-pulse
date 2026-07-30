@@ -45,7 +45,13 @@ def make_notion_task(
 		"properties": {
 			"Name": {"title": [{"plain_text": title}]} if title else {"title": []},
 			"Description": {"rich_text": [{"plain_text": description}]} if description else {"rich_text": []},
-			"Status": {"select": {"name": status}} if status else {"select": None},
+			"Status": {
+				"type": "status",
+				"status": {"name": status},
+			} if status else {
+				"type": "status",
+				"status": None,
+			},
 			"Priority": {"select": {"name": priority}} if priority else {"select": None},
 			"Assignee": {"people": [{"name": assignee_name}]} if assignee_name else {"people": []},
 			"Due": {"date": {"start": due_date}} if due_date else {"date": None},
