@@ -8,7 +8,7 @@ import {
     useQueryClient,
 } from "@tanstack/react-query";
 
-import { useAuthStore} from "@/lib/auth-store";
+import { useAuthStore } from "@/lib/auth-store";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
@@ -88,12 +88,6 @@ interface CurrentUser {
     email: string;
     is_verified: boolean;
     created_at: string;
-}
-
-interface AuthState {
-    accessToken: string | null;
-    hasHydrated: boolean;
-    clearAccessToken: () => void;
 }
 
 async function fetchDashboard(
@@ -288,8 +282,8 @@ export default function DashboardPage() {
 
     const workspaceId = params.workspace_id as string;
 
-    const accessToken = useAuthStore((state: AuthState) => state.accessToken);
-    const hasHydrated = useAuthStore((state: AuthState) => state.hasHydrated);
+    const accessToken = useAuthStore((state: { accessToken: string | null }) => state.accessToken);
+    const hasHydrated = useAuthStore((state: { hasHydrated: boolean }) => state.hasHydrated);
 
     const queryClient = useQueryClient();
 
@@ -471,6 +465,21 @@ export default function DashboardPage() {
             );
         });
     }, [tasks, search]);
+
+    // Dashboard only ever shows a short "Recent Tasks" preview - the full,
+    // filterable list lives on the All Tasks page. Sort by most recently
+    // synced/updated and cap it so the card doesn't grow unbounded.
+    const RECENT_TASKS_LIMIT = 8;
+
+    const recentTasks = useMemo(() => {
+        return [...filteredTasks]
+            .sort(
+                (a: DashboardTask, b: DashboardTask) =>
+                    new Date(b.fetched_at).getTime() -
+                    new Date(a.fetched_at).getTime()
+            )
+            .slice(0, RECENT_TASKS_LIMIT);
+    }, [filteredTasks]);
 
 
     const lastSyncedText = useMemo(() => {
@@ -670,7 +679,7 @@ export default function DashboardPage() {
                     <div className="grid gap-8 xl:grid-cols-[2fr_1fr]">
 
                         <RecentTasksTable
-                            tasks={filteredTasks.map((task: DashboardTask) => ({
+                            tasks={recentTasks.map((task: DashboardTask) => ({
                                 id: task.id,
                                 title:
                                     task.title ??
@@ -679,7 +688,6 @@ export default function DashboardPage() {
                                 status: task.status ?? task.payload?.status ?? "TODO",
                                 source: task.source,
                                 assignee: task.payload?.assignee ?? null,
-                                due_date: task.payload?.due_date ?? null,
                             }))}
                         />
 

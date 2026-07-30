@@ -68,18 +68,21 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "All statuses" },
   { value: "TODO", label: "To Do" },
   { value: "IN_PROGRESS", label: "In Progress" },
+  { value: "IN_REVIEW", label: "In Review" },
   { value: "DONE", label: "Done" },
 ];
 
 const STATUS_LABELS: Record<string, string> = {
   TODO: "To Do",
   IN_PROGRESS: "In Progress",
+  IN_REVIEW: "In Review",
   DONE: "Done",
 };
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
   TODO: "bg-slate-100 text-slate-700",
   IN_PROGRESS: "bg-amber-100 text-amber-700",
+  IN_REVIEW: "bg-blue-100 text-blue-700",
   DONE: "bg-green-100 text-green-700",
 };
 
@@ -290,7 +293,7 @@ function TaskTableSkeleton() {
                   Task
                 </th>
 
-                <th className="px-6 py-4 text-left text-sm font-semibold">
+                <th className="px-6 py-4 text-center text-sm font-semibold">
                   Source
                 </th>
 
@@ -298,11 +301,11 @@ function TaskTableSkeleton() {
                   Assignee
                 </th>
 
-                <th className="px-6 py-4 text-left text-sm font-semibold">
+                <th className="px-6 py-4 text-center text-sm font-semibold">
                   Priority
                 </th>
 
-                <th className="px-6 py-4 text-left text-sm font-semibold">
+                <th className="px-6 py-4 text-center text-sm font-semibold">
                   Status
                 </th>
 
@@ -320,8 +323,8 @@ function TaskTableSkeleton() {
                     <div className="mt-2 h-3 w-20 animate-pulse rounded bg-muted" />
                   </td>
 
-                  <td className="px-6 py-5 align-middle">
-                    <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
+                  <td className="px-6 py-5 text-center align-middle">
+                    <div className="mx-auto h-6 w-16 animate-pulse rounded-full bg-muted" />
                   </td>
 
                   <td className="px-6 py-5 align-middle">
@@ -331,12 +334,12 @@ function TaskTableSkeleton() {
                     </div>
                   </td>
 
-                  <td className="px-6 py-5 align-middle">
-                    <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
+                  <td className="px-6 py-5 text-center align-middle">
+                    <div className="mx-auto h-6 w-16 animate-pulse rounded-full bg-muted" />
                   </td>
 
-                  <td className="px-6 py-5 align-middle">
-                    <div className="h-6 w-20 animate-pulse rounded-full bg-muted" />
+                  <td className="px-6 py-5 text-center align-middle">
+                    <div className="mx-auto h-6 w-20 animate-pulse rounded-full bg-muted" />
                   </td>
 
                   <td className="px-6 py-5 align-middle">
@@ -567,7 +570,7 @@ export default function TasksPage() {
                       Task
                     </th>
 
-                    <th className="px-6 py-4 text-left text-sm font-semibold">
+                    <th className="px-6 py-4 text-center text-sm font-semibold">
                       Source
                     </th>
 
@@ -575,11 +578,11 @@ export default function TasksPage() {
                       Assignee
                     </th>
 
-                    <th className="px-6 py-4 text-left text-sm font-semibold">
+                    <th className="px-6 py-4 text-center text-sm font-semibold">
                       Priority
                     </th>
 
-                    <th className="px-6 py-4 text-left text-sm font-semibold">
+                    <th className="px-6 py-4 text-center text-sm font-semibold">
                       Status
                     </th>
 
@@ -609,7 +612,7 @@ export default function TasksPage() {
                           </p>
                         </td>
 
-                        <td className="px-6 py-5 align-middle">
+                        <td className="px-6 py-5 text-center align-middle">
                           <SourceBadge source={task.source} />
                         </td>
 
@@ -619,11 +622,11 @@ export default function TasksPage() {
                           />
                         </td>
 
-                        <td className="px-6 py-5 align-middle">
+                        <td className="px-6 py-5 text-center align-middle">
                           <PriorityBadge priority={task.payload?.priority} />
                         </td>
 
-                        <td className="px-6 py-5 align-middle">
+                        <td className="px-6 py-5 text-center align-middle">
                           <StatusBadge status={task.status} />
                         </td>
 

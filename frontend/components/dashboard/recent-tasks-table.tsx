@@ -5,23 +5,21 @@ import {
     CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar } from "lucide-react";
 
 // Shape this component actually needs, built from the normalized
 // WorkspaceData payload that both gather_and_store_jira_tasks and
 // gather_and_store_notion_tasks produce. Both sync jobs write the same
 // keys (status, assignee, due_date, ...), so this table never needs to
 // branch on `source` to know where to find a field - only to
-// render the small "Jira"/"Notion" pill. Priority is intentionally not
-// shown here - it's surfaced on the All Tasks page instead, where it's
-// also filterable.
+// render the small "Jira"/"Notion" pill. Priority and due date are
+// intentionally not shown here - they're surfaced on the All Tasks page
+// instead, where they're also filterable/sortable.
 interface Task {
     id: number;
     title: string;
     status: string;
     source: string;
     assignee?: string | null;
-    due_date?: string | null;
 }
 
 interface RecentTasksTableProps {
@@ -137,19 +135,6 @@ function SourceBadge({ source }: { source: string }) {
     );
 }
 
-function formatDueDate(value?: string | null): string {
-    if (!value) return "No due date";
-
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return "No due date";
-
-    return parsed.toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-    });
-}
-
 export function RecentTasksTable({
     tasks,
 }: RecentTasksTableProps) {
@@ -170,7 +155,7 @@ export function RecentTasksTable({
                                     Task
                                 </th>
 
-                                <th className="w-24 pb-3 text-left text-sm font-medium text-muted-foreground">
+                                <th className="w-24 pb-3 text-center text-sm font-medium text-muted-foreground">
                                     Source
                                 </th>
 
@@ -180,10 +165,6 @@ export function RecentTasksTable({
 
                                 <th className="w-36 pb-3 text-center text-sm font-medium text-muted-foreground">
                                     Status
-                                </th>
-
-                                <th className="w-36 pb-3 text-left text-sm font-medium text-muted-foreground">
-                                    Due date
                                 </th>
                             </tr>
                         </thead>
@@ -198,7 +179,7 @@ export function RecentTasksTable({
                                         {task.title}
                                     </td>
 
-                                    <td className="py-4 align-middle">
+                                    <td className="py-4 text-center align-middle">
                                         <SourceBadge source={task.source} />
                                     </td>
 
@@ -217,20 +198,13 @@ export function RecentTasksTable({
                                             status={task.status}
                                         />
                                     </td>
-
-                                    <td className="py-4 align-middle text-sm">
-                                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                                            <Calendar className="h-3.5 w-3.5" />
-                                            {formatDueDate(task.due_date)}
-                                        </div>
-                                    </td>
                                 </tr>
                             ))}
 
                             {tasks.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={5}
+                                        colSpan={4}
                                         className="py-10 text-center text-sm text-muted-foreground"
                                     >
                                         <p>No tasks found.</p>
