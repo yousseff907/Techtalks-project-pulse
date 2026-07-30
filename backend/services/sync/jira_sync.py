@@ -102,7 +102,10 @@ def normalize_jira_status(status: str | None) -> str | None:
     if status in ["to do", "open"]:
         return "TODO"
 
-    if status in ["in progress", "under review", "testing"]:
+    if status in ["in review", "review", "code review", "under review"]:
+        return "IN_REVIEW"
+
+    if status in ["in progress", "testing"]:
         return "IN_PROGRESS"
 
     if status in ["done", "closed", "resolved"]:
