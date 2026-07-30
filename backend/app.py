@@ -21,7 +21,9 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     yield
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, title="Project Pulse API",
+    			description="Aggregates Jira and Notion data into unified dashboards",
+    			version="1.0.0",root_path="/api")
 
 app.add_middleware(
 	CORSMiddleware,

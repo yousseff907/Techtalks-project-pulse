@@ -49,7 +49,7 @@ Teams that use multiple project management tools (Jira, Notion, etc.) often stru
 
 ## Team
 
-Developed by **Team Python D** as part of the **TechTalks Lebanon** internship program.
+Developed by **Team Python D** as part of the **TechTalks** internship program.
 
 - Youssef Itani (Team Lead)
 - Paul Riachy
@@ -64,5 +64,15 @@ Mentor: Khaled Frayji
 
 - Sprint 1 Report: [Notion Link](https://tasteful-persimmon-4c2.notion.site/Sprint-1-Report-39431913a1a180cbb7a8f8c414ba8201?source=copy_link)
 - Sprint 2 Report: [Notion Link](https://tasteful-persimmon-4c2.notion.site/Sprint-2-Report-39331913a1a18048bf17d8f8496b478f?source=copy_link)
+- Sprint 3 Report: [Notion Link](https://tasteful-persimmon-4c2.notion.site/Sprint-3-Report-39a31913a1a180379a8bd5352aea278b?source=copy_link)
+- Sprint 4 Report: [Notion Link](https://tasteful-persimmon-4c2.notion.site/Sprint-4-Report-3a131913a1a18020b875f53e05d524cc?source=copy_link)
+- Sprint 5 Report: [Notion Link](https://tasteful-persimmon-4c2.notion.site/Sprint-5-Report-3a931913a1a1806ca8d1d87cc23650e7?source=copy_link)
 - SRS / Documentation: [link]
-- Jira Board: [link]
+- Jira Board: [Jira Link](https://yitani.atlassian.net/jira/software/projects/PPTI/boards/36)
+
+## API Documentation
+
+Interactive API docs are generated automatically from the FastAPI route definitions and stay in sync with the code. Once the stack is running (`make up`):
+
+- Swagger UI: http://localhost/api/docs
+- ReDoc: http://localhost/api/redoc
