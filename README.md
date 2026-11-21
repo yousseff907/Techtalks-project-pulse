@@ -98,10 +98,10 @@ pytest backend/tests/    # needs a Postgres at localhost:5432 (user/pass/db: tes
 
 Developed by **Team Python D** as part of the **TechTalks** internship program.
 
-- Youssef Itani (Team Lead)
-- Paul Riachy
-- Abbas Abed Al Nabi
-- Nour Al Zahraa Hammoud
+- [Youssef Itani](https://github.com/yousseff907) (Team Lead)
+- [Paul Riachy](https://github.com/PaulRiachy)
+- [Abbas Abed Al Nabi](https://github.com/Abbas-an)
+- [Nour Al Zahraa Hammoud](https://github.com/nhh0050-cell)
 
 Mentor: Khaled Frayji
 
