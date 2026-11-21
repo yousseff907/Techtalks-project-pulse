@@ -103,7 +103,7 @@ Developed by **Team Python D** as part of the **TechTalks** internship program.
 - [Abbas Abed Al Nabi](https://github.com/Abbas-an)
 - [Nour Al Zahraa Hammoud](https://github.com/nhh0050-cell)
 
-Mentor: Khaled Frayji
+Mentor: [Khaled Frayji](https://github.com/khaledfrayji)
 
 ---
 
