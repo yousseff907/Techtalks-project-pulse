@@ -3,7 +3,7 @@ uvicorn
 pytest
 ruff
 dotenv
-sqlalchemy
+sqlalchemy>=2.0,<2.1
 requests
 cryptography
 pyjwt
