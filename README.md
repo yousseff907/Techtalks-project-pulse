@@ -63,6 +63,37 @@ Teams that use multiple project management tools (Jira, Notion, etc.) often stru
 
 ---
 
+## Getting Started
+
+**Prerequisites:** Docker with Docker Compose, and `make`.
+
+```bash
+git clone https://github.com/yousseff907/Techtalks-project-pulse.git
+cd Techtalks-project-pulse
+cp .env.example .env    # fill in the secrets and API keys
+make up-build
+```
+
+The app is then available at <http://localhost>, and the API docs at <http://localhost/api/docs>.
+
+| Command | What it does |
+|---------|--------------|
+| `make up` | Start all services |
+| `make down` | Stop all services |
+| `make logs` | Follow logs from all services |
+| `make clean` | Stop services and delete the database volume |
+| `make backend-shell` | Open a shell in the backend container |
+| `make db-shell` | Open `psql` in the database container |
+
+**Running tests:**
+
+```bash
+pip install -r backend/requirements.txt
+pytest backend/tests/    # needs a Postgres at localhost:5432 (user/pass/db: testuser/testpass/testdb)
+```
+
+---
+
 ## Team
 
 Developed by **Team Python D** as part of the **TechTalks** internship program.
