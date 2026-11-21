@@ -132,3 +132,9 @@ FastAPI generates interactive API docs from the route definitions, so they alway
 
 - Swagger UI: <http://localhost/api/docs>
 - ReDoc: <http://localhost/api/redoc>
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE).
