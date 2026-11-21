@@ -1,55 +1,59 @@
 # Techtalks Project Pulse
 
-> A unified project management and analytics web application developed as an internship project within the TechTalks Lebanon program.
+[![CI](https://github.com/yousseff907/Techtalks-project-pulse/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/yousseff907/Techtalks-project-pulse/actions/workflows/ci.yml)
+
+> A Jira and Notion analytics dashboard, built as an internship project in the TechTalks Lebanon program.
 
 ---
 
-## About the Project
+## About the project
 
-Project Pulse is a web application that aggregates and normalizes project data from multiple sources (primarily **Jira** and **Notion** via their REST APIs) and presents it through clean, unified dashboards, graphs, and tables. The goal is to give teams a single place to monitor productivity, track progress, and gain actionable insights across their tools.
-
----
-
-## The Problem It Solves
-
-Teams that use multiple project management tools (Jira, Notion, etc.) often struggle to get a unified view of their work. Switching between platforms, manually compiling reports, and tracking team performance across disconnected tools wastes time and creates blind spots. Project Pulse solves this by pulling all that data into one place and surfacing it through meaningful analytics.
+Project Pulse pulls tasks, projects, and team members from Jira and Notion through their REST APIs, converts them into one internal schema, and shows them on a single dashboard. Teams can follow their progress across both tools without switching between them.
 
 ---
 
-## Main Features (MVP)
+## The problem it solves
 
-- **Jira & Notion Integration:** Extract and normalize project data from both platforms via their APIs into a unified internal schema
-- **Unified Dashboard:** Visual display of normalized data through tables, charts, and graphs
-- **Productivity Analytics:** Calculated insights including task completion rates, team velocity, workload distribution, and performance metrics
-- **Authentication:** Email-based, passwordless login with verification codes
-- **Multi-workspace Support:** Users can belong to multiple workspaces, each with its own connected integrations and data
+When a team splits its work between Jira and Notion, nobody has one view of it. Someone has to check both tools and put status reports together by hand, and work tracked in one tool is easy to miss from the other. Project Pulse syncs both into one place and does the counting automatically.
+
+---
+
+## Features
+
+- Jira and Notion integration that normalizes tasks, projects, and users from both platforms into one schema
+- Automatic sync of every workspace every 30 minutes with Celery beat, plus a manual sync for workspace owners and admins
+- Dashboard with task counts by status, recent tasks, and sync status; the dashboard API also calculates completion rate and workload per assignee
+- Task table with search and filters by source, status, and priority
+- Team directory that matches workspace members to their Jira and Notion accounts by email or name
+- AI workspace summaries generated with Google Gemini, which can be emailed to yourself or anyone else
+- Passwordless login with emailed verification codes
+- Multiple workspaces per user, each with its own integrations, invite code, and member roles
 
 ---
 
 ## Screenshots
 
-> Shown with sample demo data.
+The screenshots use sample demo data.
 
 ![Dashboard](docs/screenshots/dashboard.jpg)
 
-| All Tasks | Team Members |
+| All tasks | Team members |
 |-----------|--------------|
-| ![All Tasks](docs/screenshots/tasks.jpg) | ![Team Members](docs/screenshots/members.jpg) |
+| ![All tasks](docs/screenshots/tasks.jpg) | ![Team members](docs/screenshots/members.jpg) |
 
-| Integrations | Landing Page |
+| Integrations | Landing page |
 |--------------|--------------|
-| ![Integrations](docs/screenshots/integrations.jpg) | ![Landing Page](docs/screenshots/landing.jpg) |
+| ![Integrations](docs/screenshots/integrations.jpg) | ![Landing page](docs/screenshots/landing.jpg) |
 
 ---
 
-## Stretch / Post-MVP Features
+## Planned features
 
-- **AI-Generated Summaries:** Automated written summaries of project and team status
-- **Daily Report Delivery:** Automated reports via email (and potentially WhatsApp if feasible)
+- Scheduled daily reports by email, and possibly WhatsApp
 
 ---
 
-## Tech Stack
+## Tech stack
 
 | Layer | Technology |
 |-------|-----------|
@@ -57,15 +61,18 @@ Teams that use multiple project management tools (Jira, Notion, etc.) often stru
 | Backend | FastAPI (Python) |
 | ORM | SQLAlchemy |
 | Database | PostgreSQL |
+| Background jobs | Celery, Redis |
+| AI summaries | Google Gemini |
+| Email | Resend |
 | Infrastructure | Docker, Nginx |
 | CI/CD | GitHub Actions |
-| Data Sources | Jira REST API, Notion REST API |
+| Data sources | Jira REST API, Notion REST API |
 
 ---
 
-## Getting Started
+## Getting started
 
-**Prerequisites:** Docker with Docker Compose, and `make`.
+You need Docker with Docker Compose, and `make`.
 
 ```bash
 git clone https://github.com/yousseff907/Techtalks-project-pulse.git
@@ -74,7 +81,7 @@ cp .env.example .env    # fill in the secrets and API keys
 make up-build
 ```
 
-The app is then available at <http://localhost>, and the API docs at <http://localhost/api/docs>.
+The app runs at <http://localhost>, and the API docs at <http://localhost/api/docs>.
 
 | Command | What it does |
 |---------|--------------|
@@ -85,7 +92,7 @@ The app is then available at <http://localhost>, and the API docs at <http://loc
 | `make backend-shell` | Open a shell in the backend container |
 | `make db-shell` | Open `psql` in the database container |
 
-**Running tests:**
+### Running tests
 
 ```bash
 pip install -r backend/requirements.txt
@@ -96,7 +103,7 @@ pytest backend/tests/    # needs a Postgres at localhost:5432 (user/pass/db: tes
 
 ## Team
 
-Developed by **Team Python D** as part of the **TechTalks** internship program.
+Built by Team Python D during the TechTalks internship program.
 
 - [Youssef Itani](https://github.com/yousseff907) (Team Lead)
 - [Paul Riachy](https://github.com/PaulRiachy)
@@ -107,7 +114,7 @@ Mentor: [Khaled Frayji](https://github.com/khaledfrayji)
 
 ---
 
-## Sprint Reports & Documentation
+## Sprint reports and documentation
 
 - Sprint 1 Report: [Notion Link](https://tasteful-persimmon-4c2.notion.site/Sprint-1-Report-39431913a1a180cbb7a8f8c414ba8201?source=copy_link)
 - Sprint 2 Report: [Notion Link](https://tasteful-persimmon-4c2.notion.site/Sprint-2-Report-39331913a1a18048bf17d8f8496b478f?source=copy_link)
@@ -117,9 +124,11 @@ Mentor: [Khaled Frayji](https://github.com/khaledfrayji)
 - SRS / Documentation: [Notion Link](https://tasteful-persimmon-4c2.notion.site/Project-Pulse-Software-Engineering-Documentation-38431913a1a180019af3d43f4b80e74d)
 - Development Workflow: [Notion Link](https://tasteful-persimmon-4c2.notion.site/Development-Workflow-38831913a1a18035870dedf9dc77c782)
 
-## API Documentation
+---
 
-Interactive API docs are generated automatically from the FastAPI route definitions and stay in sync with the code. Once the stack is running (`make up`):
+## API documentation
 
-- Swagger UI: http://localhost/api/docs
-- ReDoc: http://localhost/api/redoc
+FastAPI generates interactive API docs from the route definitions, so they always match the code. With the stack running (`make up`), open:
+
+- Swagger UI: <http://localhost/api/docs>
+- ReDoc: <http://localhost/api/redoc>
