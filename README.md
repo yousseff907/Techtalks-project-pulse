@@ -26,6 +26,22 @@ Teams that use multiple project management tools (Jira, Notion, etc.) often stru
 
 ---
 
+## Screenshots
+
+> Shown with sample demo data.
+
+![Dashboard](docs/screenshots/dashboard.jpg)
+
+| All Tasks | Team Members |
+|-----------|--------------|
+| ![All Tasks](docs/screenshots/tasks.jpg) | ![Team Members](docs/screenshots/members.jpg) |
+
+| Integrations | Landing Page |
+|--------------|--------------|
+| ![Integrations](docs/screenshots/integrations.jpg) | ![Landing Page](docs/screenshots/landing.jpg) |
+
+---
+
 ## Stretch / Post-MVP Features
 
 - **AI-Generated Summaries:** Automated written summaries of project and team status
